@@ -32,7 +32,7 @@
                         "opensubghz/xschem/vco_transfer_tb.sch's inline sky130_fd_pr__ind_05_125 RLC-pi model"
                     ],
                     "schematic": "inductor/inductor_placeholder_rlc.sch",
-                    "parameters_file": "params/inductor/placeholder_rlc.json"
+                    "parameters_file": "sch/inductor/inductor_placeholder_rlc.params.json"
                 }
             }
         },
@@ -45,7 +45,7 @@
                         "opensubghz/xschem/half_qvco_param.sch, vco_transfer_tb.sch (SKY130 reference topology)"
                     ],
                     "schematic": "vco/vco_quadrature_lc.sch",
-                    "parameters_file": "params/vco/quadrature_lc.json",
+                    "parameters_file": "sch/vco/vco_quadrature_lc.params.json",
                     "sub_blocks": {
                         "XL1": {"block": "inductor", "topology": "placeholder_rlc"}
                     }

@@ -19,8 +19,8 @@ placeholders. What's here:
 
 - `config.json` -- minimal structural skeleton (container image, dirs,
   technology limits). `blocks` and `tests` are intentionally empty.
-- `sch/`, `tb/`, `tb/_shared/`, `params/` -- empty directories, ready for
-  the first block.
+- `sch/`, `tb/`, `tb/_shared/` -- empty directories, ready for the first
+  block.
 - This README.
 
 ## GF180MCU PDK support
@@ -102,7 +102,6 @@ aren't part of the BSIM/Xyce model set and need their own modeling approach
 | Dir | Contents |
 | --- | --- |
 | `config.json` | Blocks, topologies, tests, profiles -- single source of truth (currently empty `blocks`/`tests`). |
-| `sch/` | Topology schematics (`.sch`/`.sym`) -- empty for now. |
+| `sch/` | Topology schematics (`.sch`/`.sym`), plus each topology's own parameters right next to it (`sch/<block>/<topology>.params.json`) -- empty for now. |
 | `tb/` | Testbenches + parsers (`tb/<block>/tb_*.py`), shared helpers in `tb/_shared/` -- empty for now. |
-| `params/` | Declared parameter sets per block/topology -- empty for now. |
 | `sim/` | Simulation output (gitignored, tool-regenerated). Doesn't exist yet. |
