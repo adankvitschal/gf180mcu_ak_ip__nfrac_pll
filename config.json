@@ -15,9 +15,147 @@
     "defaults": {
         "vdd": "5.0",
         "dvdd": "3.3",
+        "vco_vdd": "3.3",
+        "vtune": "1.65",
+        "ibias": "100u",
+        "cload": "1.0f",
         "temperature": "25",
         "corner": "tt"
     },
-    "blocks": {},
-    "tests": {}
+    "blocks": {
+        "inductor": {
+            "symbol": "inductor.sym",
+            "topologies": {
+                "placeholder_rlc": {
+                    "description": "Fixed RLC-pi equivalent (2.895nH per half, center-tapped), carried over verbatim from opensubghz's sky130_fd_pr__ind_05_125 -- NOT a real GF180MCU inductor model. Split out as its own block (a/b/ct/sub interface) specifically so a real characterized/EM-extracted model can be added later as a sibling topology sharing the same interface, without touching whatever instantiates sch/inductor.sym.",
+                    "references": [
+                        "opensubghz/xschem/vco_transfer_tb.sch's inline sky130_fd_pr__ind_05_125 RLC-pi model"
+                    ],
+                    "schematic": "inductor/inductor_placeholder_rlc.sch",
+                    "parameters_file": "params/inductor/placeholder_rlc.json"
+                }
+            }
+        },
+        "vco": {
+            "symbol": "vco.sym",
+            "topologies": {
+                "quadrature_lc": {
+                    "description": "Quadrature LC-VCO: two cross-coupled NMOS negative-gm cores (half_qvco_cell), each with its own LC tank, tail-coupled via an extra injection pair driven by the other core's differential output -- forces the two cores into quadrature lock. Ported from opensubghz's SKY130 half_qvco_param/vco_transfer_tb (nfet3_01v8 -> nfet_03v3, cap_var_lvt -> cap_nmos_03v3 MOS varactor). Runs on its own vco_vdd rail (3.3V, matching nfet_03v3's rating) rather than the chip's 5.0V analog rail. Inductor is a placeholder RLC subckt carried over verbatim from opensubghz -- not a real GF180MCU inductor model; pending rnxrbb's own inductor characterization work.",
+                    "references": [
+                        "opensubghz/xschem/half_qvco_param.sch, vco_transfer_tb.sch (SKY130 reference topology)"
+                    ],
+                    "schematic": "vco/vco_quadrature_lc.sch",
+                    "parameters_file": "params/vco/quadrature_lc.json",
+                    "sub_blocks": {
+                        "XL1": {"block": "inductor", "topology": "placeholder_rlc"}
+                    }
+                }
+            }
+        },
+        "top": {
+            "symbol": "top.sym"
+        }
+    },
+    "tests": {
+        "vco": {
+            "op": {
+                "simulator": "ngspice",
+                "testbench": "tb/vco/tb_op.sch",
+                "parser": "tb/vco/tb_op.py",
+                "outputs": [
+                    {
+                        "description": "VCO core current consumption",
+                        "unit": "uA"
+                    }
+                ],
+                "conditions": {
+                    "vco_vdd": ["3.3"],
+                    "vtune": ["1.65"],
+                    "temperature": ["-40", "25", "125"],
+                    "corner": ["tt", "ss", "ff"],
+                    "typical": {"corner": "tt", "temperature": "25"}
+                }
+            }
+        },
+        "top": {
+            "op": {
+                "simulator": "ngspice",
+                "testbench": "tb/top/tb_top_op.sch",
+                "parser": "tb/top/tb_top_op.py",
+                "outputs": [
+                    {
+                        "description": "Total PLL power consumption (proposal: low uW-mW range depending on frequency/loop bandwidth, no fixed target given)",
+                        "unit": "mW"
+                    }
+                ],
+                "conditions": {
+                    "temperature": ["-40", "25", "125"],
+                    "corner": ["tt", "ss", "ff"],
+                    "typical": {"corner": "tt", "temperature": "25"}
+                }
+            },
+            "spectral": {
+                "simulator": "xyce",
+                "testbench": "tb/top/tb_top_spectral.sch",
+                "parser": "tb/top/tb_top_spectral.py",
+                "outputs": [
+                    {
+                        "description": "SSB phase noise @ 1MHz offset (proposal target)",
+                        "unit": "dBc/Hz",
+                        "maximum": -120
+                    },
+                    {
+                        "description": "In-band spurious tones (proposal target)",
+                        "unit": "dBc",
+                        "maximum": -70
+                    }
+                ],
+                "conditions": {
+                    "temperature": ["25"],
+                    "corner": ["tt", "ss", "ff"],
+                    "typical": {"corner": "tt", "temperature": "25"}
+                }
+            },
+            "lock": {
+                "simulator": "ngspice",
+                "testbench": "tb/top/tb_top_lock.sch",
+                "parser": "tb/top/tb_top_lock.py",
+                "outputs": [
+                    {
+                        "description": "Lock acquisition time (proposal: \"within a few hundred microseconds\" -- 500us used as an approximate target pending a firmer spec)",
+                        "unit": "us",
+                        "maximum": 500
+                    }
+                ],
+                "conditions": {
+                    "temperature": ["25"],
+                    "corner": ["tt", "ss", "ff"],
+                    "typical": {"corner": "tt", "temperature": "25"}
+                }
+            },
+            "freq_range": {
+                "simulator": "ngspice",
+                "testbench": "tb/top/tb_top_freq_range.sch",
+                "parser": "tb/top/tb_top_freq_range.py",
+                "outputs": [
+                    {
+                        "description": "Output frequency range (proposal: ISM band 902-928MHz)",
+                        "unit": "MHz",
+                        "minimum": 902,
+                        "maximum": 928
+                    },
+                    {
+                        "description": "Fractional tuning range (proposal target)",
+                        "unit": "%",
+                        "minimum": 20
+                    }
+                ],
+                "conditions": {
+                    "temperature": ["-40", "25", "125"],
+                    "corner": ["tt", "ss", "ff"],
+                    "typical": {"corner": "tt", "temperature": "25"}
+                }
+            }
+        }
+    }
 }

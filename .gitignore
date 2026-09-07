@@ -2,6 +2,12 @@
 xschemrc
 .hierarchical_materialize.lock
 
+# materializado a partir de sch/<block>/*.sch pelo run_sim.py -- não é fonte.
+# Adicionar uma linha aqui para cada novo block com topologies em config.json
+# (mesma convenção do ihp_mh_ip__cmos_vref).
+sch/vco.sch
+sch/inductor.sch
+
 # saída de simulação -- netlists, dados brutos, plots, results.jsonl/variations.jsonl
 sim/
 

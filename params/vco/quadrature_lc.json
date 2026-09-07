@@ -1,0 +1,148 @@
+{
+    "parameters": {
+        "m1m2_width": {
+            "description": "Channel width of the cross-coupled negative-gm pair (M1/M2) in each half_qvco_cell instance -- placeholder sizing, needs real gm/Id re-sizing for GF180MCU's nfet_03v3",
+            "unit": "um",
+            "default": "10u",
+            "min": "0.22u",
+            "max": "100u",
+            "grid": "0.01u"
+        },
+        "m1m2_length": {
+            "description": "Channel length of M1/M2",
+            "unit": "um",
+            "default": "0.28u",
+            "min": "0.28u",
+            "max": "10u",
+            "grid": "0.01u"
+        },
+        "m1m2_fingers": {
+            "description": "Finger count (nf) of M1/M2",
+            "unit": "",
+            "default": "2",
+            "min": "1",
+            "max": "20",
+            "integer": true
+        },
+        "m1m2_mult": {
+            "description": "Instance multiplier (m=) of M1/M2",
+            "unit": "",
+            "default": "1",
+            "min": "1",
+            "max": "20",
+            "integer": true
+        },
+        "m3m4_width": {
+            "description": "Channel width of the tail-coupling injection/cascode pair (M3/M4), gated by the neighbor half-cell's I_p/I_n -- placeholder sizing",
+            "unit": "um",
+            "default": "10u",
+            "min": "0.22u",
+            "max": "100u",
+            "grid": "0.01u"
+        },
+        "m3m4_length": {
+            "description": "Channel length of M3/M4",
+            "unit": "um",
+            "default": "0.28u",
+            "min": "0.28u",
+            "max": "10u",
+            "grid": "0.01u"
+        },
+        "m3m4_fingers": {
+            "description": "Finger count (nf) of M3/M4",
+            "unit": "",
+            "default": "2",
+            "min": "1",
+            "max": "20",
+            "integer": true
+        },
+        "m3m4_mult": {
+            "description": "Instance multiplier (m=) of M3/M4",
+            "unit": "",
+            "default": "1",
+            "min": "1",
+            "max": "20",
+            "integer": true
+        },
+        "m5_width": {
+            "description": "Channel width of the per-half-cell tail bias transistor M5 (mirrors vco_quadrature_lc.sch's own nbias1 reference)",
+            "unit": "um",
+            "default": "10u",
+            "min": "0.22u",
+            "max": "100u",
+            "grid": "0.01u"
+        },
+        "m5_length": {
+            "description": "Channel length of M5",
+            "unit": "um",
+            "default": "0.28u",
+            "min": "0.28u",
+            "max": "10u",
+            "grid": "0.01u"
+        },
+        "m5_fingers": {
+            "description": "Finger count (nf) of M5 -- sets the per-half-cell tail current mirror ratio against the shared nbias1 reference",
+            "unit": "",
+            "default": "10",
+            "min": "1",
+            "max": "50",
+            "integer": true
+        },
+        "m5_mult": {
+            "description": "Instance multiplier (m=) of M5",
+            "unit": "",
+            "default": "1",
+            "min": "1",
+            "max": "20",
+            "integer": true
+        },
+        "nbias1_width": {
+            "description": "Channel width of vco_quadrature_lc.sch's own diode-connected M1 mirror transistor, which turns the block's external ibias current into the nbias1 gate voltage shared by every half_qvco_cell's M5",
+            "unit": "um",
+            "default": "10u",
+            "min": "0.22u",
+            "max": "100u",
+            "grid": "0.01u"
+        },
+        "nbias1_length": {
+            "description": "Channel length of the nbias1 mirror transistor",
+            "unit": "um",
+            "default": "0.28u",
+            "min": "0.28u",
+            "max": "10u",
+            "grid": "0.01u"
+        },
+        "m1_fingers": {
+            "description": "Finger count (nf) of the nbias1 mirror transistor",
+            "unit": "",
+            "default": "1",
+            "min": "1",
+            "max": "20",
+            "integer": true
+        },
+        "capvar_width": {
+            "description": "cap_nmos_03v3 (MOS varactor, standing in for sky130's cap_var_lvt) channel width -- placeholder sizing",
+            "unit": "um",
+            "default": "30u",
+            "min": "1u",
+            "max": "100u",
+            "grid": "0.01u"
+        },
+        "capvar_length": {
+            "description": "cap_nmos_03v3 channel length",
+            "unit": "um",
+            "default": "30u",
+            "min": "1u",
+            "max": "100u",
+            "grid": "0.01u"
+        },
+        "capvar_mult": {
+            "description": "cap_nmos_03v3 instance multiplier (m=)",
+            "unit": "",
+            "default": "4",
+            "min": "1",
+            "max": "20",
+            "integer": true
+        }
+    }
+}
