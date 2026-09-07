@@ -1,0 +1,23 @@
+{
+    "container": {
+        "image": "eda-env-designer:gf180mcuD"
+    },
+    "dir": {
+        "testbench": "tb",
+        "simulation": "sim"
+    },
+    "technology": {
+        "mosfet_limits": {
+            "lv": {"vgs_max": 3.3, "vds_max": 3.3, "vgb_max": 3.3, "vdb_max": 3.3, "vsb_max": 3.3},
+            "hv": {"vgs_max": 6.0, "vds_max": 6.0, "vgb_max": 6.0, "vdb_max": 6.0, "vsb_max": 6.0}
+        }
+    },
+    "defaults": {
+        "vdd": "5.0",
+        "dvdd": "3.3",
+        "temperature": "25",
+        "corner": "tt"
+    },
+    "blocks": {},
+    "tests": {}
+}

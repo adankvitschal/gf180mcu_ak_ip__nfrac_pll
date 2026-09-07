@@ -1,0 +1,17 @@
+# gerado/copiado pelo mh-analog-designer(-lite) run_sim.py na primeira execução
+xschemrc
+.hierarchical_materialize.lock
+
+# saída de simulação -- netlists, dados brutos, plots, results.jsonl/variations.jsonl
+sim/
+
+# feature "pro" (modelos substitutos treinados) -- não faz parte da distribuição pública
+models/
+
+# python
+__pycache__/
+*.pyc
+
+# local reference material (papers, proposals) -- kept out of the public
+# repo, partly for third-party paper copyright
+articles/
