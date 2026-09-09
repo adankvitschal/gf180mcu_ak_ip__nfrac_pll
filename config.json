@@ -16,8 +16,8 @@
         "vdd": "5.0",
         "dvdd": "3.3",
         "vco_vdd": "3.3",
-        "vtune": "1.65",
-        "ibias": "100u",
+        "vtune": "2.5",
+        "ibias": "100n",
         "cload": "1.0f",
         "temperature": "25",
         "corner": "tt"
@@ -48,6 +48,10 @@
                     "parameters_file": "sch/vco/vco_quadrature_lc.params.json",
                     "sub_blocks": {
                         "XL1": {"block": "inductor", "topology": "placeholder_rlc"}
+                    },
+                    "structural_sub_blocks": {
+                        "X1": {"schematic": "vco/half_qvco_cell.sch"},
+                        "X2": {"schematic": "vco/half_qvco_cell.sch"}
                     }
                 }
             }
@@ -57,6 +61,28 @@
         }
     },
     "tests": {
+        "inductor": {
+            "yparam": {
+                "simulator": "ngspice",
+                "testbench": "tb/inductor/tb_yparam.sch",
+                "parser": "tb/inductor/tb_yparam.py",
+                "outputs": [
+                    {
+                        "description": "Self-resonant frequency (SRF) -- also used as this block's maximum recommended operating frequency",
+                        "unit": "GHz"
+                    },
+                    {
+                        "description": "Peak Q factor across the AC sweep",
+                        "unit": ""
+                    }
+                ],
+                "conditions": {
+                    "temperature": ["-40", "25", "125"],
+                    "corner": ["tt", "ss", "ff"],
+                    "typical": {"corner": "tt", "temperature": "25"}
+                }
+            }
+        },
         "vco": {
             "op": {
                 "simulator": "ngspice",
@@ -70,7 +96,66 @@
                 ],
                 "conditions": {
                     "vco_vdd": ["3.3"],
-                    "vtune": ["1.65"],
+                    "vtune": ["2.5"],
+                    "temperature": ["-40", "25", "125"],
+                    "corner": ["tt", "ss", "ff"],
+                    "typical": {"corner": "tt", "temperature": "25"}
+                }
+            },
+            "startup": {
+                "simulator": "ngspice",
+                "testbench": "tb/vco/tb_startup.sch",
+                "parser": "tb/vco/tb_startup.py",
+                "outputs": [
+                    {
+                        "description": "Startup time (envelope to 90% of steady-state amplitude)",
+                        "unit": "ns"
+                    },
+                    {
+                        "description": "Steady-state oscillation frequency",
+                        "unit": "MHz"
+                    },
+                    {
+                        "description": "Steady-state I differential output amplitude (peak-peak)",
+                        "unit": "mV",
+                        "minimum": 50
+                    },
+                    {
+                        "description": "Steady-state Q differential output amplitude (peak-peak)",
+                        "unit": "mV",
+                        "minimum": 50
+                    },
+                    {
+                        "description": "I/Q quadrature phase error (deviation from 90 degrees)",
+                        "unit": "deg"
+                    }
+                ],
+                "conditions": {
+                    "vco_vdd": ["3.3"],
+                    "vtune": ["2.2", "2.5", "2.8"],
+                    "temperature": ["25"],
+                    "corner": ["tt"],
+                    "typical": {"corner": "tt", "temperature": "25", "vtune": "2.5"}
+                }
+            },
+            "loop_gain": {
+                "simulator": "ngspice",
+                "testbench": "tb/vco/tb_loop_gain.sch",
+                "parser": "tb/vco/tb_loop_gain.py",
+                "outputs": [
+                    {
+                        "description": "Tank resonant frequency (Im(Y11) = 0)",
+                        "unit": "GHz"
+                    },
+                    {
+                        "description": "Net conductance at resonance (Re(Y11); negative = net negative resistance, oscillation should grow -- positive = net loss, matches a decaying tb_startup kick)",
+                        "unit": "mS",
+                        "maximum": 0
+                    }
+                ],
+                "conditions": {
+                    "vco_vdd": ["3.3"],
+                    "vtune": ["2.5"],
                     "temperature": ["-40", "25", "125"],
                     "corner": ["tt", "ss", "ff"],
                     "typical": {"corner": "tt", "temperature": "25"}
