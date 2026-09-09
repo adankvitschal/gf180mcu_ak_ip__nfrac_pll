@@ -24,7 +24,7 @@ N 360 -30 560 -30 {lab=#net4}
 N 560 -30 560 60 {lab=#net4}
 N 360 -50 620 -50 {lab=#net5}
 N 620 -50 620 60 {lab=#net5}
-C {devices/vsource.sym} -300 -100 0 0 {name=Vdd value="dc 'vdd'"}
+C {devices/vsource.sym} -300 -100 0 0 {name=Vdd value="dc 'vco_vdd'"}
 C {devices/gnd.sym} -300 -70 0 0 {name=l3 lab=GND}
 C {devices/vsource.sym} -180 -100 0 0 {name=Vtune value="dc 'vtune'"}
 C {devices/gnd.sym} -180 -70 0 0 {name=l4 lab=GND}
@@ -39,16 +39,15 @@ value="
 .include 'models_dir'/design.spice
 .lib 'models_dir'/sm141064.spice 'mos_corner'
 .lib 'models_dir'/sm141064.spice moscap_'mos_corner'
-.lib 'models_dir'/sm141064.spice moscap
 .option TEMP='temperature'
 .option warn=1
 .option savecurrents
 .control
 save all
 op
-print I(Vmeas_vdd)
+print I(Vdd)
 set wr_singlescale
-wrdata 'simpath'/'filename'_'N'.data -I(Vmeas_vdd)
+wrdata 'simpath'/'filename'_'N'.data -I(Vdd)
 set filetype=ascii
 write 'simpath'/'filename'_'N'.raw
 quit
