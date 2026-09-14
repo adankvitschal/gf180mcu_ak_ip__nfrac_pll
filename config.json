@@ -33,6 +33,41 @@
                     ],
                     "schematic": "inductor/inductor_placeholder_rlc.sch",
                     "parameters_file": "sch/inductor/inductor_placeholder_rlc.params.json"
+                },
+                "ind_03_90": {
+                    "description": "sky130_fd_pr__ind_03_90's own characterized RLC-pi equivalent (760.5pH per half, center-tapped) -- NOT a GF180MCU model either, added purely to compare against the ind_05_125 placeholder currently in use for the VCO tank.",
+                    "references": [
+                        "fossi-foundation/skywater-pdk-libs-sky130_fd_pr's cells/ind_03/sky130_fd_pr__ind_03_90.model.spice"
+                    ],
+                    "schematic": "inductor/inductor_ind_03_90.sch",
+                    "parameters_file": "sch/inductor/inductor_ind_03_90.params.json"
+                },
+                "ind_05_220": {
+                    "description": "sky130_fd_pr__ind_05_220's own characterized RLC-pi equivalent (4.96nH per half, center-tapped) -- NOT a GF180MCU model either, added purely to compare against the ind_05_125 placeholder currently in use for the VCO tank.",
+                    "references": [
+                        "fossi-foundation/skywater-pdk-libs-sky130_fd_pr's cells/ind_05/sky130_fd_pr__ind_05_220.model.spice"
+                    ],
+                    "schematic": "inductor/inductor_ind_05_220.sch",
+                    "parameters_file": "sch/inductor/inductor_ind_05_220.params.json"
+                },
+                "spiral": {
+                    "description": "Real GF180MCU octagonal spiral, characterized by a 3D FDTD (openEMS) run instead of a carried-over reference RLC-pi. Renamed from 'spiral_openems': openEMS is this topology's current FITTING METHOD, not its identity -- the topology itself is 'an octagonal GF180MCU spiral inductor'. 'schematic' is now a normal STATIC template (inductor_spiral.sch, discrete L/R/C symbols with 'l'/'rs'/'cox'/'rsub'/'csub'/'cs' substitute_params() tokens) like every other topology -- inductor_spiral_generator.py's fit_electrical_params() (invoked host-side by resolve_generator_params() at materialization time, or in-container after a real FDTD run) supplies those 6 derived values, declared in parameters_file's derived_parameters.generator block. No center-tap/mutual-coupling EM model yet (single continuous 2-terminal winding, planar port + Metal4 crossunder bringing both terminals adjacent) -- rsub/csub/cs are placeholder-quality until a real center-tap-aware EM methodology exists. See openems_inductor_status.md project memory for the port-topology history and open issues (Q sign/magnitude still under investigation as of this entry).",
+                    "references": [
+                        "sch/inductor/inductor_spiral_generator.py -- this repo's own generator, invoked by mh-analog-designer's run_sim.py (resolve_generator_params() for the fast placeholder path, run_one_openems()/openems_generator_runner.py for the real FDTD path)"
+                    ],
+                    "generator": "sch/inductor/inductor_spiral_generator.py",
+                    "schematic": "inductor/inductor_spiral.sch",
+                    "parameters_file": "sch/inductor/inductor_spiral.params.json"
+                },
+                "loop": {
+                    "description": "Simple rectangular closed-loop GF180MCU Metal5 inductor, characterized by a 3D FDTD (openEMS) run -- formalizes tools/gf180mcu_inductor_diag_loop.py's own already-validated standalone diagnostic (single planar in-line port bridging a gap cut into one side, extracted R within 5% of the analytic estimate) as a real generator-backed topology, using the SAME generator contract and the SAME pi-network circuit model as 'spiral' (inductor_spiral.sch copied verbatim to inductor_loop.sch). Only 3 free geometric parameters (width_um, height_um, track_width_um -- no turns/spacing, no crossunder/center-tap EM model) -- deliberately simpler than 'spiral', meant as an independent, already-validated reference for exercising the openEMS materialize/FDTD/fit workflow while 'spiral' still has an open Q-sign bug (see openems_inductor_status.md).",
+                    "references": [
+                        "sch/inductor/inductor_loop_generator.py -- this repo's own generator, same materialize/run contract as inductor_spiral_generator.py",
+                        "tools/gf180mcu_inductor_diag_loop.py -- the standalone diagnostic this topology formalizes"
+                    ],
+                    "generator": "sch/inductor/inductor_loop_generator.py",
+                    "schematic": "inductor/inductor_loop.sch",
+                    "parameters_file": "sch/inductor/inductor_loop.params.json"
                 }
             }
         },
@@ -52,6 +87,21 @@
                     "structural_sub_blocks": {
                         "X1": {"schematic": "vco/half_qvco_cell.sch"},
                         "X2": {"schematic": "vco/half_qvco_cell.sch"}
+                    }
+                },
+                "quadrature_lc_cascode1": {
+                    "description": "Cascoded variant of quadrature_lc: each half-cell's cross-coupled pair (M1/M2) gets a cascode device (M6/M7) stacked between it and the tank/injection nodes, isolating the tank from M1/M2's own finite output conductance. Added after loop_gain sweeps on quadrature_lc showed that, at minimum channel length, the bare cross-coupled pair's own gds cancels out most of its useful -gm/2 negative conductance, so scaling W/current on the plain pair alone could not close the loop against the placeholder inductor's loss (Q~11). Cascode gate bias (nbias2) comes from a second diode-connected reference M2, stacked in series ABOVE M1 (same shared ibias current flows through both) -- a replica-biasing scheme mirroring the real signal path's own M6/M7-over-M5 stack, rather than a fixed voltage.",
+                    "references": [
+                        "opensubghz's SKY130 half_qvco_param/vco_transfer_tb (nfet3_01v8 -> nfet_03v3, cap_var_lvt -> cap_nmos_03v3 MOS varactor)"
+                    ],
+                    "schematic": "vco/vco_quadrature_lc_cascode1.sch",
+                    "parameters_file": "sch/vco/vco_quadrature_lc_cascode1.params.json",
+                    "sub_blocks": {
+                        "XL1": {"block": "inductor", "topology": "placeholder_rlc"}
+                    },
+                    "structural_sub_blocks": {
+                        "X1": {"schematic": "vco/half_qvco_cascode_pair.sch"},
+                        "X2": {"schematic": "vco/half_qvco_cascode_pair.sch"}
                     }
                 }
             }
@@ -80,6 +130,43 @@
                     "temperature": ["-40", "25", "125"],
                     "corner": ["tt", "ss", "ff"],
                     "typical": {"corner": "tt", "temperature": "25"}
+                }
+            },
+            "yparam_diff": {
+                "simulator": "ngspice",
+                "testbench": "tb/inductor/tb_yparam_diff.sch",
+                "parser": "tb/inductor/tb_yparam_diff.py",
+                "outputs": [
+                    {
+                        "description": "Differential self-resonant frequency (SRF)",
+                        "unit": "GHz"
+                    },
+                    {
+                        "description": "Peak differential Q factor across the AC sweep",
+                        "unit": ""
+                    },
+                    {
+                        "description": "Differential Q at 1GHz (the VCO's own operating point)",
+                        "unit": ""
+                    }
+                ],
+                "conditions": {
+                    "temperature": ["-40", "25", "125"],
+                    "corner": ["tt", "ss", "ff"],
+                    "typical": {"corner": "tt", "temperature": "25"}
+                }
+            },
+            "yparam_spiral": {
+                "simulator": "openems",
+                "testbench": "tb/inductor/tb_yparam_spiral_dummy.sch",
+                "parser": "tb/inductor/tb_yparam_spiral.py",
+                "outputs": [
+                    {"description": "Self-resonant frequency (SRF), EM-extracted", "unit": "GHz"},
+                    {"description": "Peak Q factor across the FDTD frequency sweep", "unit": ""}
+                ],
+                "conditions": {
+                    "corner": ["tt"],
+                    "typical": {"corner": "tt"}
                 }
             }
         },

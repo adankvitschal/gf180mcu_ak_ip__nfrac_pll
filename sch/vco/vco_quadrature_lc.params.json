@@ -115,15 +115,16 @@
             "integer": true
         },
         "capvar_width": {
-            "description": "cap_nmos_03v3 (MOS varactor, standing in for sky130's cap_var_lvt) unit-cell channel width -- placeholder sizing. Combined with capvar_mult into capvar_width_total (see derived_parameters.formulas) before reaching half_qvco_cell's own capvar_width formal parameter, instead of being passed through directly.",
+            "description": "cap_pmos_03v3 (MOS varactor, standing in for sky130's cap_var_lvt) unit-cell channel width -- placeholder sizing.",
             "unit": "um",
             "default": "30u",
             "min": "1u",
             "max": "100u",
-            "grid": "0.01u"
+            "grid": "0.01u",
+            "sub_block": ["X1", "X2"]
         },
         "capvar_length": {
-            "description": "cap_nmos_03v3 channel length",
+            "description": "cap_pmos_03v3 channel length",
             "unit": "um",
             "default": "30u",
             "min": "1u",
@@ -132,21 +133,17 @@
             "sub_block": ["X1", "X2"]
         },
         "capvar_mult": {
-            "description": "Number of parallel cap_nmos_03v3 unit cells (folded into capvar_width_total, not passed as the device's own m= keyword -- ngspice-47 corrupts cap_nmos_03v3's internal nonlinear C(V) G-element whenever its m= is anything other than the implicit absent default, even m=1; see derived_parameters.formulas.capvar_width_total and sch/vco/cap_nmos_03v3_no_m.sym)",
+            "description": "Number of parallel cap_pmos_03v3 unit cells, passed straight through as the device's own m= keyword (see sch/vco/half_qvco_cell.sch's C1/C3).",
             "unit": "",
             "default": "4",
             "min": "1",
             "max": "20",
-            "integer": true
+            "integer": true,
+            "sub_block": ["X1", "X2"]
         }
     },
     "derived_parameters": {
         "formulas": {
-            "capvar_width_total": {
-                "unit_suffix": "",
-                "expr": "capvar_width * capvar_mult",
-                "description": "Total varactor width across capvar_mult parallel cap_nmos_03v3 unit cells, folded into one width term -- passed as half_qvco_cell's own capvar_width formal parameter (see sch/vco/vco_quadrature_lc.sch's X1/X2) instead of using the device's own m= keyword, which is broken on ngspice-47 for cap_nmos_03v3 specifically."
-            },
             "m5_width_matched": {
                 "unit_suffix": "",
                 "expr": "nbias1_width",

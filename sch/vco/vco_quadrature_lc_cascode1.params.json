@@ -1,0 +1,216 @@
+{
+    "parameters": {
+        "m1m2_width": {
+            "description": "Channel width of the cross-coupled negative-gm pair (M1/M2) in each half_qvco_cascode_pair instance -- placeholder sizing, needs real gm/Id re-sizing for GF180MCU's nfet_03v3",
+            "unit": "um",
+            "default": "10u",
+            "min": "0.22u",
+            "max": "100u",
+            "grid": "0.01u",
+            "sub_block": ["X1", "X2"]
+        },
+        "m1m2_length": {
+            "description": "Channel length of M1/M2",
+            "unit": "um",
+            "default": "0.28u",
+            "min": "0.28u",
+            "max": "10u",
+            "grid": "0.01u",
+            "sub_block": ["X1", "X2"]
+        },
+        "m1m2_fingers": {
+            "description": "Finger count (nf) of M1/M2 -- purely a layout/parasitic split of the same total width across parallel gate fingers (see ad/pd/as/ps formulas in half_qvco_cascode_pair.sch, which use W/nf as the per-finger width). Does not scale current/gm.",
+            "unit": "",
+            "default": "2",
+            "min": "1",
+            "max": "20",
+            "integer": true,
+            "sub_block": ["X1", "X2"]
+        },
+        "m1m2_mult": {
+            "description": "Instance multiplier (m=) of M1/M2",
+            "unit": "",
+            "default": "1",
+            "min": "1",
+            "max": "20",
+            "integer": true,
+            "sub_block": ["X1", "X2"]
+        },
+        "m3m4_width": {
+            "description": "Channel width of the tail-coupling injection pair (M3/M4), gated by the neighbor half-cell's I_p/I_n -- placeholder sizing",
+            "unit": "um",
+            "default": "10u",
+            "min": "0.22u",
+            "max": "100u",
+            "grid": "0.01u",
+            "sub_block": ["X1", "X2"]
+        },
+        "m3m4_length": {
+            "description": "Channel length of M3/M4",
+            "unit": "um",
+            "default": "0.28u",
+            "min": "0.28u",
+            "max": "10u",
+            "grid": "0.01u",
+            "sub_block": ["X1", "X2"]
+        },
+        "m3m4_fingers": {
+            "description": "Finger count (nf) of M3/M4 -- layout/parasitic split only, does not scale current/gm",
+            "unit": "",
+            "default": "2",
+            "min": "1",
+            "max": "20",
+            "integer": true,
+            "sub_block": ["X1", "X2"]
+        },
+        "m3m4_mult": {
+            "description": "Instance multiplier (m=) of M3/M4",
+            "unit": "",
+            "default": "1",
+            "min": "1",
+            "max": "20",
+            "integer": true,
+            "sub_block": ["X1", "X2"]
+        },
+        "m5_fingers": {
+            "description": "Finger count (nf) of M5 -- purely a layout/parasitic split of the same total width across parallel gate fingers. Does NOT set the mirror ratio against nbias1 -- that is m5_mult.",
+            "unit": "",
+            "default": "10",
+            "min": "1",
+            "max": "50",
+            "integer": true,
+            "sub_block": ["X1", "X2"]
+        },
+        "m5_mult": {
+            "description": "Current-mirror ratio of each half-cell's tail transistor M5 against the shared nbias1 diode-connected reference M1 (vco_quadrature_lc_cascode1.sch), i.e. instance multiplier (m=) of M5. Valid as a direct current ratio because m5_width/m5_length are tied to nbias1_width/nbias1_length (see derived_parameters.formulas.m5_width_matched/m5_length_matched) -- M5 and M1 use the same unit device, only replicated m5_mult times. Default of 50 matches the project's validated baseline (with ibias=100n, ~5uA tail current per half-cell, ~10uA total block consumption) -- carried over from the non-cascode quadrature_lc topology as the starting point for this variant.",
+            "unit": "",
+            "default": "50",
+            "min": "1",
+            "max": "200",
+            "integer": true,
+            "sub_block": ["X1", "X2"]
+        },
+        "m6m7_width": {
+            "description": "Channel width of the cascode devices M6/M7, stacked between the cross-coupled pair (M1/M2) and the tank/injection nodes in each half_qvco_cascode_pair instance. Their job is to isolate the tank from M1/M2's own finite output conductance (gds) -- at minimum channel length, gm*ro of the bare cross-coupled pair is low enough that its own gds was found (empirically, via loop_gain sweeps on the non-cascode topology) to cancel out most of the useful -gm/2 negative conductance, which is why this cascode variant exists. Unlike m5_width/m5_length (a true current mirror against nbias1_width/nbias1_length, tied via derived_parameters.formulas), m6m7_width/m6m7_length are NOT tied to nbias2_width/nbias2_length: M6/M7 carry the full branch current and just need adequate Vgs overdrive from the nbias2 DC bias level, they don't mirror M2's (tiny reference) current, so they are freely-sizable, independent parameters.",
+            "unit": "um",
+            "default": "10u",
+            "min": "0.22u",
+            "max": "100u",
+            "grid": "0.01u",
+            "sub_block": ["X1", "X2"]
+        },
+        "m6m7_length": {
+            "description": "Channel length of M6/M7. nbias2_length tracks THIS value (derived_parameters.formulas.nbias2_length_matched), not the other way around, so that the nbias2 bias voltage's Vth reference stays matched to M6/M7's own Vth across PVT whenever this is changed -- see nbias2_width's own description.",
+            "unit": "um",
+            "default": "0.28u",
+            "min": "0.28u",
+            "max": "10u",
+            "grid": "0.01u",
+            "sub_block": ["X1", "X2"]
+        },
+        "m6m7_fingers": {
+            "description": "Finger count (nf) of M6/M7 -- layout/parasitic split only, does not scale current/gm",
+            "unit": "",
+            "default": "2",
+            "min": "1",
+            "max": "20",
+            "integer": true,
+            "sub_block": ["X1", "X2"]
+        },
+        "m6m7_mult": {
+            "description": "Instance multiplier (m=) of M6/M7",
+            "unit": "",
+            "default": "1",
+            "min": "1",
+            "max": "20",
+            "integer": true,
+            "sub_block": ["X1", "X2"]
+        },
+        "nbias1_width": {
+            "description": "Channel width of vco_quadrature_lc_cascode1.sch's own diode-connected M1 reference transistor (lower device of the M2-over-M1 stacked reference, closer to vss), which turns the block's external ibias current into the nbias1 gate voltage shared by every half_qvco_cascode_pair's tail transistor M5. Also the unit width every M5 is tied to (derived_parameters.formulas.m5_width_matched) so that mirror stays matched.",
+            "unit": "um",
+            "default": "10u",
+            "min": "0.22u",
+            "max": "100u",
+            "grid": "0.01u"
+        },
+        "nbias1_length": {
+            "description": "Channel length of the nbias1 mirror transistor M1. Also the unit length every M5 is tied to (derived_parameters.formulas.m5_length_matched) -- keeping L identical between the diode-connected reference and every mirror output is the single most important condition for accurate current mirroring (drain current is proportional to 1/L, so any L mismatch is a direct systematic current error).",
+            "unit": "um",
+            "default": "0.28u",
+            "min": "0.28u",
+            "max": "10u",
+            "grid": "0.01u"
+        },
+        "m1_fingers": {
+            "description": "Finger count (nf) of the nbias1 reference transistor M1 -- layout/parasitic split only, does not affect the mirror ratio",
+            "unit": "",
+            "default": "1",
+            "min": "1",
+            "max": "20",
+            "integer": true
+        },
+        "nbias2_width": {
+            "description": "Channel width of vco_quadrature_lc_cascode1.sch's own diode-connected M2 reference transistor -- stacked in series ABOVE M1 (same shared ibias current flows through both), producing the nbias2 gate voltage feeding every half_qvco_cascode_pair's cascode devices M6/M7. This replica-biasing scheme (M2-over-M1 mirrors the real signal path's own M6/M7-over-M5 stack) tracks process/temperature better than a fixed-voltage (e.g. tied-to-vdd) cascode bias. Width is NOT tied to m6m7_width -- see m6m7_width's own description for why this isn't a current-mirror pair (M6/M7 carry the full branch current, not a mirrored fraction of M2's). Length IS tied, though (derived_parameters.formulas.nbias2_length_matched = m6m7_length): M6/M7's own Vth (via DIBL/short-channel effects) depends on their own L, so keeping M2's L identical to M6/M7's makes the nbias2 bias voltage track M6/M7's actual Vth across PVT/corners -- otherwise the cascode's overdrive margin (Vgs-Vth) would drift unpredictably whenever m6m7_length is changed without also updating M2 to match.",
+            "unit": "um",
+            "default": "10u",
+            "min": "0.22u",
+            "max": "100u",
+            "grid": "0.01u"
+        },
+        "m2_fingers": {
+            "description": "Finger count (nf) of the nbias2 reference transistor M2 -- layout/parasitic split only",
+            "unit": "",
+            "default": "1",
+            "min": "1",
+            "max": "20",
+            "integer": true
+        },
+        "capvar_width": {
+            "description": "cap_pmos_03v3 (MOS varactor, standing in for sky130's cap_var_lvt) unit-cell channel width -- placeholder sizing.",
+            "unit": "um",
+            "default": "30u",
+            "min": "1u",
+            "max": "100u",
+            "grid": "0.01u",
+            "sub_block": ["X1", "X2"]
+        },
+        "capvar_length": {
+            "description": "cap_pmos_03v3 channel length",
+            "unit": "um",
+            "default": "30u",
+            "min": "1u",
+            "max": "100u",
+            "grid": "0.01u",
+            "sub_block": ["X1", "X2"]
+        },
+        "capvar_mult": {
+            "description": "Number of parallel cap_pmos_03v3 unit cells, passed straight through as the device's own m= keyword (see sch/vco/half_qvco_cascode_pair.sch's C1/C3).",
+            "unit": "",
+            "default": "4",
+            "min": "1",
+            "max": "20",
+            "integer": true,
+            "sub_block": ["X1", "X2"]
+        }
+    },
+    "derived_parameters": {
+        "formulas": {
+            "m5_width_matched": {
+                "unit_suffix": "",
+                "expr": "nbias1_width",
+                "description": "Ties each half-cell's M5 tail transistor width to the nbias1 diode-connected reference's width, so the current mirror uses a matched unit device (only m5_mult scales the ratio) -- passed as half_qvco_cascode_pair's own m5_width formal parameter instead of an independent leaf value."
+            },
+            "m5_length_matched": {
+                "unit_suffix": "",
+                "expr": "nbias1_length",
+                "description": "Ties each half-cell's M5 tail transistor length to the nbias1 diode-connected reference's length, eliminating L mismatch between reference and mirror output -- passed as half_qvco_cascode_pair's own m5_length formal parameter instead of an independent leaf value."
+            },
+            "nbias2_length_matched": {
+                "unit_suffix": "",
+                "expr": "m6m7_length",
+                "description": "Ties the nbias2 reference transistor M2's length to the cascode devices M6/M7's own length, so M2's Vth (and DIBL/short-channel behavior) tracks M6/M7's actual Vth across PVT -- unlike m5_width_matched/m5_length_matched (a true current mirror), this is NOT about matching a mirrored current ratio (M6/M7 don't mirror M2's current), it's about keeping the bias voltage's Vth reference point valid for whatever L the cascode devices actually use. Passed as vco_quadrature_lc_cascode1.sch's own M2 formal L parameter instead of an independent nbias2_length leaf value."
+            }
+        }
+    }
+}

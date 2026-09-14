@@ -55,7 +55,7 @@ lab=Q_n}
 N -120 -190 -120 -70 {
 lab=Q_p}
 N 0 -290 0 -270 {
-lab=gnd}
+lab=SUB}
 N 0 -380 0 -350 {
 lab=vdd}
 N -120 -330 -60 -330 {
@@ -71,20 +71,6 @@ lab=vtune}
 N 0 -190 0 -170 {
 lab=vtune}
 N -460 -40 -380 -40 {lab=SUB}
-C {symbols/cap_nmos_03v3.sym} 50 -170 3 0 {name=C1
-W="'capvar_width'"
-L="'capvar_length'"
-m="'capvar_mult'"
-model=cap_nmos_03v3
-spiceprefix=X
-}
-C {symbols/cap_nmos_03v3.sym} -50 -170 1 0 {name=C2
-W="'capvar_width'"
-L="'capvar_length'"
-m="'capvar_mult'"
-model=cap_nmos_03v3
-spiceprefix=X
-}
 C {sch/inductor.sym} 0 -330 2 0 {name=XL1}
 C {devices/iopin.sym} -460 -40 0 1 {name=p2 lab=SUB}
 C {devices/iopin.sym} 0 -380 0 0 {name=p9 lab=vdd}
@@ -175,3 +161,15 @@ sa=0 sb=0 sd=0
 model=nfet_03v3
 spiceprefix=X}
 C {devices/lab_pin.sym} -380 -40 0 1 {name=l1 sig_type=std_logic lab=SUB}
+C {symbols/cap_pmos_03v3.sym} 50 -170 1 0 {name=C1
+W='capvar_width'
+L='capvar_length'
+m='capvar_mult'
+model=cap_pmos_03v3
+spiceprefix=X}
+C {symbols/cap_pmos_03v3.sym} -50 -170 3 1 {name=C3
+W='capvar_width'
+L='capvar_length'
+m='capvar_mult'
+model=cap_pmos_03v3
+spiceprefix=X}

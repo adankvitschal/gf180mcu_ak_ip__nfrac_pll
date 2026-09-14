@@ -5,9 +5,9 @@ V {}
 S {}
 E {}
 * One-port Y11 characterization of the inductor block's chosen topology:
-* drive 'a' with a 1V AC source (net vin_node), ground 'b' and 'sub', leave
-* 'ct' floating (it stays internally bridged to both half-windings via
-* L1/L2 -- same differential path the QVCO tank actually uses, just
+* drive pin a with a 1V AC source (net vin_node), ground pin b and sub,
+* leave pin ct floating (it stays internally bridged to both half-windings
+* via L1/L2 -- same differential path the QVCO tank actually uses, just
 * single-ended-driven here for a clean Y11 measurement). See tb_yparam.py
 * for Q = -Im(Y11)/Re(Y11) and SRF extraction from the resulting
 * frequency/y11_re/y11_im columns.

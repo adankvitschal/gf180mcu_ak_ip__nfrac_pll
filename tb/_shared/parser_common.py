@@ -1,8 +1,9 @@
 """Generic testbench-parser helpers shared across every block (vco, top,
 ...) -- copied from ihp_mh_ip__cmos_vref/tb/_shared/parser_common.py (same
-mh-analog-designer-lite workflow, PDK-agnostic helpers). Loaded via
+analog-designer-core workflow, PDK-agnostic helpers). Loaded via
 analog_designer.sim.run_sim.load_parser() putting this directory on
 sys.path alongside each parser's own directory."""
+import math
 import re
 
 _SI_SUFFIXES = {"": 1, "f": 1e-15, "p": 1e-12, "n": 1e-9, "u": 1e-6,
@@ -10,13 +11,30 @@ _SI_SUFFIXES = {"": 1, "f": 1e-15, "p": 1e-12, "n": 1e-9, "u": 1e-6,
 
 
 def read_data(path):
+    """Raises ValueError the moment a non-finite (nan/inf) value is found --
+    ngspice's wrdata happily writes those out verbatim when a simulation
+    diverges/fails to converge, and Python's float() parses them without
+    complaint, so a silent pass-through here used to turn into a blank plot
+    downstream (matplotlib's autoscale breaks on nan/inf) with no error
+    anywhere in between. Loud failure here instead of a mysteriously empty
+    plot -- check the corresponding ngspice.log for the actual convergence
+    warning that caused it."""
     rows = []
     with open(path) as f:
-        for line in f:
+        for lineno, line in enumerate(f, 1):
             line = line.strip()
             if not line:
                 continue
-            rows.append([float(x) for x in line.split()])
+            values = [float(x) for x in line.split()]
+            bad = [v for v in values if not math.isfinite(v)]
+            if bad:
+                raise ValueError(
+                    f"{path}: non-finite value(s) {bad} on data line {lineno} -- "
+                    "the simulation likely diverged/failed to converge (check the "
+                    "corresponding ngspice.log for warnings) rather than producing "
+                    "a real result"
+                )
+            rows.append(values)
     return rows
 
 

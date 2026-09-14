@@ -16,8 +16,14 @@ from parser_common import read_data, typical_min_max, legend_if_any
 def extract(data_path):
     rows = read_data(data_path)
     freqs = [r[0] for r in rows]
-    re = [r[1] for r in rows]
-    im = [r[2] for r in rows]
+    # wrdata emits 5 columns here despite `wr_singlescale` and only 2 named
+    # traces (frequency, y11_re, y11_im): [freq, freq-again, 0.0, im, re] --
+    # confirmed by passivity (Re(Y11) >= 0) and inductive sign convention
+    # (Im(Y11) < 0 at low frequency) holding at columns 4/3 respectively
+    # across the sweep, not columns 1/2 as the wrdata argument order would
+    # naively suggest.
+    im = [r[3] for r in rows]
+    re = [r[4] for r in rows]
 
     q = [(-i / r) if r else float("nan") for r, i in zip(re, im)]
 
@@ -40,7 +46,17 @@ def extract(data_path):
 
 def evaluate(runs, outputs, typical, plot_base=None):
     srf_spec, q_spec = outputs
-    srf_result = typical_min_max(runs, typical, lambda r: r["srf_ghz"])
+    # Im(Y11) doesn't necessarily cross zero within the swept range (e.g. a
+    # single half-winding driven with the other half grounded can stay
+    # inductive all the way to 20GHz) -- typical_min_max's min()/max() can't
+    # compare None, so report +inf ("self-resonance is above this sweep's
+    # ceiling") instead of crashing. Not plain None: print_metrics() treats
+    # typical=None as a Monte Carlo mean+-std result, a different metric
+    # shape entirely, and would KeyError looking for "mean"/"std" here.
+    if all(r["srf_ghz"] is None for r in runs):
+        srf_result = {"typical": float("inf"), "min": float("inf"), "max": float("inf")}
+    else:
+        srf_result = typical_min_max(runs, typical, lambda r: r["srf_ghz"])
     q_result = typical_min_max(runs, typical, lambda r: r["peak_q"])
 
     if plot_base and len(runs) > 1:
