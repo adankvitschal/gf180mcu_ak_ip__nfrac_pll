@@ -60,6 +60,7 @@ value="
 .lib 'models_dir'/sm141064.spice moscap_'mos_corner'
 .option TEMP='temperature'
 .option warn=1
+.option rshunt=1e12
 .control
 save all
 ac dec 100 1meg 20g

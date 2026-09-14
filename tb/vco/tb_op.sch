@@ -42,6 +42,7 @@ value="
 .option TEMP='temperature'
 .option warn=1
 .option savecurrents
+.option rshunt=1e12
 .control
 save all
 op

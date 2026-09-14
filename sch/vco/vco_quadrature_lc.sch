@@ -51,8 +51,9 @@ m5_width='m5_width_matched'
 m5_length='m5_length_matched'
 m5_fingers='m5_fingers'
 m5_mult='m5_mult'
-capvar_width='capvar_width_total'
+capvar_width='capvar_width'
 capvar_length='capvar_length'
+capvar_mult='capvar_mult'
 }
 C {sch/vco/half_qvco_cell.sym} 400 0 0 0 {name=X2
 m1m2_width='m1m2_width'
@@ -67,8 +68,9 @@ m5_width='m5_width_matched'
 m5_length='m5_length_matched'
 m5_fingers='m5_fingers'
 m5_mult='m5_mult'
-capvar_width='capvar_width_total'
+capvar_width='capvar_width'
 capvar_length='capvar_length'
+capvar_mult='capvar_mult'
 }
 C {devices/lab_pin.sym} -30 -160 1 0 {name=l1 lab=vdd}
 C {devices/lab_pin.sym} 0 -160 1 0 {name=l2 lab=vss}

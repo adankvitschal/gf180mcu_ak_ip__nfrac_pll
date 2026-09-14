@@ -70,6 +70,8 @@ value="
 .lib 'models_dir'/sm141064.spice moscap_'mos_corner'
 .option TEMP='temperature'
 .option warn=1
+.option rshunt=1e12
+.option gmin=1e-6
 Ikick net5 GND pulse(0 1u 0 20p 20p 20p 1)
 .control
 save all

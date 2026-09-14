@@ -2,7 +2,7 @@ v {xschem version=3.4.7 file_version=1.2}
 G {}
 K {name=half_qvco_cell_subckt
 type=subcircuit
-format="@name @pinlist @symname m1m2_width=@m1m2_width m1m2_length=@m1m2_length m1m2_fingers=@m1m2_fingers m1m2_mult=@m1m2_mult m3m4_width=@m3m4_width m3m4_length=@m3m4_length m3m4_fingers=@m3m4_fingers m3m4_mult=@m3m4_mult m5_width=@m5_width m5_length=@m5_length m5_fingers=@m5_fingers m5_mult=@m5_mult capvar_width=@capvar_width capvar_length=@capvar_length"
+format="@name @pinlist @symname m1m2_width=@m1m2_width m1m2_length=@m1m2_length m1m2_fingers=@m1m2_fingers m1m2_mult=@m1m2_mult m3m4_width=@m3m4_width m3m4_length=@m3m4_length m3m4_fingers=@m3m4_fingers m3m4_mult=@m3m4_mult m5_width=@m5_width m5_length=@m5_length m5_fingers=@m5_fingers m5_mult=@m5_mult capvar_width=@capvar_width capvar_length=@capvar_length capvar_mult=@capvar_mult"
 template="name=X1
 +m1m2_width=10u
 +m1m2_length=0.28u
@@ -17,7 +17,8 @@ template="name=X1
 +m5_fingers=10
 +m5_mult=1
 +capvar_width=120u
-+capvar_length=30u"}
++capvar_length=30u
++capvar_mult=4"}
 V {}
 S {}
 E {}

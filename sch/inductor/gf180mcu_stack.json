@@ -1,0 +1,63 @@
+{
+    "_readme": "Physical constants for GF180MCU's metal/oxide/substrate stack, used by inductor_spiral_generator.py's 3D FDTD geometry. Every value cites the exact file inside the eda-env-designer:gf180mcuD container's $PDK_ROOT it was read from -- confirmed by direct inspection, not from vendor documentation we don't have local access to. The one exception (substrate resistivity) is explicitly marked PLACEHOLDER.",
+    "metal5": {
+        "sheet_resistance_ohm_per_sq": {
+            "tt": 0.040, "ss": 0.049, "ff": 0.031,
+            "source": "libs.tech/magic/gf180mcuD.tech, 'resist (allm5)/metal5' (3 corner blocks)"
+        },
+        "thickness_m": {
+            "value": 1.1925e-6,
+            "source": "libs.tech/klayout/tech/d25/gf180mcu.lyd25 (KLayout D25 3D stack), Metal5 'height'"
+        },
+        "z_start_m": {
+            "value": 5.76e-6,
+            "source": "libs.tech/klayout/tech/d25/gf180mcu.lyd25, sum of 'zstart' offsets up to Metal5 (860 + 1150*3 + 1450 nm)"
+        },
+        "areacap_to_substrate_aF_per_um2": {
+            "tt": 5.798, "ss": 6.240, "ff": 5.414,
+            "source": "libs.tech/magic/gf180mcuD.tech, 'defaultareacap allm5 metal5' (3 corner blocks) -- cross-validated against the d25 stack's physical oxide height via parallel-plate C=eps0*epsr(SiO2=3.9)/height =~ 6.0 aF/um^2, within ~5% of the measured value"
+        }
+    },
+    "metal4": {
+        "sheet_resistance_ohm_per_sq": {
+            "tt": 0.090, "ss": 0.104, "ff": 0.076,
+            "source": "libs.tech/magic/gf180mcuD.tech, 'resist (allm4)/metal4' (3 corner blocks, same block grouping as metal5's own tt/ss/ff)"
+        },
+        "thickness_m": {
+            "value": 0.550e-6,
+            "source": "libs.tech/klayout/tech/d25/gf180mcu.lyd25, z(Metal4, ...height: 550.nm)"
+        },
+        "z_start_m": {
+            "value": 4.310e-6,
+            "source": "libs.tech/klayout/tech/d25/gf180mcu.lyd25, z(Metal4, zstart: (860+550*3+600*3).nm)"
+        }
+    },
+    "via4": {
+        "_readme": "Metal4-to-Metal5 via, used by the center-tap crossunder (inductor_spiral_generator.py's add_crossunder()). No explicit z() entry for Via4 exists in gf180mcu.lyd25 (unlike Via2/Via3) -- it's the oxide gap between Metal4's top (z_start+thickness = 4.86um) and Metal5's own z_start (5.76um, see metal5.z_start_m above), i.e. height = 0.9um, taken directly from those two already-sourced numbers rather than a separate citation.",
+        "min_width_m": {
+            "value": 0.28e-6,
+            "source": "libs.tech/magic/gf180mcuD.tech DRC: 'width v4/m4 280' (nm)"
+        },
+        "min_spacing_m": {
+            "value": 0.24e-6,
+            "source": "libs.tech/magic/gf180mcuD.tech DRC: 'spacing v4 v4 240 touching_ok' (nm)"
+        },
+        "modeling_note": "This generator models the via4 connection as a SOLID conductive block spanning the Metal4-Metal5 gap at each crossunder endpoint (not a discrete via array) -- a deliberate v1 simplification. The per-via contact resistance found in gf180mcuD.tech ('contact via4' at 4500/15000/0 -- units and whether that third, ff-corner value of exactly 0 is a real physical number or a tech-file convention for 'not separately modeled' were NOT resolved) was judged not worth resolving for this generator's precision level, since even a modest real via array's effective resistance is expected to be small relative to the Metal4 trace's own resistance for the crossunder lengths involved here -- revisit if that assumption turns out to matter."
+    },
+    "oxide": {
+        "epsilon_r": 3.9,
+        "source": "SiO2 relative permittivity -- standard material constant, not GF180MCU-specific"
+    },
+    "substrate": {
+        "epsilon_r": 11.9,
+        "epsilon_r_source": "silicon relative permittivity -- standard material constant, not GF180MCU-specific",
+        "resistivity_ohm_cm": {
+            "value": 10.0,
+            "source": "PLACEHOLDER -- literature-typical bulk p-substrate value for a ~180nm process, NOT a real GF180MCU number. open_pdks deletes gf180mcu_fd_pr's raw source tree after `make install`, so this container has no volumetric substrate resistivity anywhere; not found either in the GF180MCU readthedocs Design Manual pages checked so far. Revisit before trusting absolute Q/SRF numbers from this generator -- see openems_inductor_status.md."
+        },
+        "isosub_sheet_resistance_ohm_per_sq": {
+            "value": 3250.0,
+            "source": "libs.tech/magic/gf180mcuD.tech, 'resist (pwell,isosub)/well' -- real GF180MCU value (not corner-dependent), recorded here but not yet consumed by this generator's simple vertical-via ground model"
+        }
+    }
+}

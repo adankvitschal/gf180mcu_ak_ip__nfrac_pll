@@ -1,0 +1,57 @@
+{
+    "_generated_by": "manual (loop topology -- geometric free params + generator-derived electrical params)",
+    "parameters": {
+        "width_um": {
+            "description": "Outer footprint width (x extent) of the rectangular loop",
+            "unit": "um",
+            "default": "40",
+            "min": "10",
+            "max": "100",
+            "grid": "1"
+        },
+        "height_um": {
+            "description": "Outer footprint height (y extent) of the rectangular loop",
+            "unit": "um",
+            "default": "10",
+            "min": "5",
+            "max": "50",
+            "grid": "1"
+        },
+        "track_width_um": {
+            "description": "Metal5 trace width -- keep well under min(width_um, height_um)/2 or the loop's inner opening closes",
+            "unit": "um",
+            "default": "1",
+            "min": "0.5",
+            "max": "10",
+            "grid": "0.5"
+        }
+    },
+    "derived_parameters": {
+        "generator": {
+            "l": {
+                "unit": "H",
+                "description": "Series inductance of each half-winding -- fitted from a real openEMS Y11 run when available, otherwise a generic placeholder literal. See inductor_loop_generator.py's fit_electrical_params()."
+            },
+            "rs": {
+                "unit": "ohm",
+                "description": "Series winding resistance of each half-winding -- same fit/placeholder split as 'l'."
+            },
+            "cox": {
+                "unit": "F",
+                "description": "Oxide/substrate coupling capacitance at each terminal -- real geometry x GF180MCU Metal5 areacap data, always computed for real (no FDTD needed)."
+            },
+            "rsub": {
+                "unit": "ohm",
+                "description": "Substrate loss resistance completing each terminal's oxide-coupling path -- PLACEHOLDER quality, not yet derived from any EM run (see gf180mcu_stack.json's substrate.resistivity_ohm_cm note)."
+            },
+            "csub": {
+                "unit": "F",
+                "description": "Substrate capacitance in parallel with rsub at each terminal -- PLACEHOLDER quality, same caveat as rsub."
+            },
+            "cs": {
+                "unit": "F",
+                "description": "Coupling capacitance from each terminal to the center tap (ct) -- PLACEHOLDER quality; this generator's one-port EM methodology has no distinct 'ct' measurement yet."
+            }
+        }
+    }
+}

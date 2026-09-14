@@ -5,8 +5,8 @@ process (`gf180mcuD` variant), targeting submission to
 [**Chipalooza Challenge #3**](https://opencircuitdesign.com/chipalooza/rules-3.html)
 (opencircuitdesign.com / Tim Edwards), fabricated via
 [wafer.space](https://wafer.space/). Designed and simulated through the
-[mh-analog-designer(-lite)](https://github.com/moduhub/mh-analog-designer-lite)
-tool: schematic capture in xschem, simulation via ngspice/Xyce, and a
+[analog-designer-core](https://github.com/moduhub/analog-designer-core)
+tool: schematic capture in xschem, simulation via ngspice/Xyce/openEMS, and a
 `config.json`-driven pipeline for generating/exploring parameter variations
 and scoring them against design profiles -- same workflow as the sibling
 `ihp_mh_ip__cmos_vref` project.
@@ -102,6 +102,6 @@ aren't part of the BSIM/Xyce model set and need their own modeling approach
 | Dir | Contents |
 | --- | --- |
 | `config.json` | Blocks, topologies, tests, profiles -- single source of truth (currently empty `blocks`/`tests`). |
-| `sch/` | Topology schematics (`.sch`/`.sym`), plus each topology's own parameters right next to it (`sch/<block>/<topology>.params.json`) -- empty for now. |
+| `sch/` | Topology schematics (`.sch`/`.sym`), plus each topology's own parameters right next to it (`sch/<block>/<topology>.params.json`) -- empty for now. A "generator"-backed topology (e.g. `inductor/spiral`) additionally keeps its Python generator module in the same directory (`sch/inductor/inductor_spiral_generator.py`) -- a small PDK-specific plugin (geometry math + electrical fit only, no run/CLI code) referenced from `config.json`'s `"generator"` key, same project-repo-relative-path convention as `"parser"`/`"testbench"`. |
 | `tb/` | Testbenches + parsers (`tb/<block>/tb_*.py`), shared helpers in `tb/_shared/` -- empty for now. |
 | `sim/` | Simulation output (gitignored, tool-regenerated). Doesn't exist yet. |

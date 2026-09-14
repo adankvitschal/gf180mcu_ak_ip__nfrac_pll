@@ -1,0 +1,81 @@
+v {xschem version=3.4.7 file_version=1.2}
+G {}
+K {name=half_qvco_cascode_pair_subckt
+type=subcircuit
+format="@name @pinlist @symname m1m2_width=@m1m2_width m1m2_length=@m1m2_length m1m2_fingers=@m1m2_fingers m1m2_mult=@m1m2_mult m3m4_width=@m3m4_width m3m4_length=@m3m4_length m3m4_fingers=@m3m4_fingers m3m4_mult=@m3m4_mult m5_width=@m5_width m5_length=@m5_length m5_fingers=@m5_fingers m5_mult=@m5_mult m6m7_width=@m6m7_width m6m7_length=@m6m7_length m6m7_fingers=@m6m7_fingers m6m7_mult=@m6m7_mult capvar_width=@capvar_width capvar_length=@capvar_length capvar_mult=@capvar_mult"
+template="name=X1
++m1m2_width=10u
++m1m2_length=0.28u
++m1m2_fingers=2
++m1m2_mult=1
++m3m4_width=10u
++m3m4_length=0.28u
++m3m4_fingers=2
++m3m4_mult=1
++m5_width=10u
++m5_length=0.28u
++m5_fingers=10
++m5_mult=1
++m6m7_width=10u
++m6m7_length=0.28u
++m6m7_fingers=2
++m6m7_mult=1
++capvar_width=120u
++capvar_length=30u
++capvar_mult=4"}
+V {}
+S {}
+E {}
+L 4 -120 -30 -80 -30 {}
+L 4 -20 20 20 -30 {}
+L 4 0 -30 20 -30 {}
+L 4 20 -30 20 -10 {}
+L 4 -120 30 -80 30 {}
+L 4 80 -30 120 -30 {}
+L 4 80 30 120 30 {}
+L 4 -80 -60 -80 60 {}
+L 4 -40 -160 -40 -120 {}
+L 4 -10 -160 -10 -120 {}
+L 4 20 -160 20 -120 {}
+L 4 -80 -120 -80 -60 {}
+L 4 -20 90 -20 130 {}
+L 4 -80 60 -80 90 {}
+L 4 80 -120 80 90 {}
+L 4 40 90 40 130 {}
+L 4 50 -160 50 -120 {}
+L 4 -80 -120 80 -120 {}
+L 4 -80 90 80 90 {}
+B 5 -42.5 -162.5 -37.5 -157.5 {name=vdd
+dir=inout}
+B 5 -12.5 -162.5 -7.5 -157.5 {name=vss
+dir=inout}
+B 5 17.5 -162.5 22.5 -157.5 {name=nbias1
+dir=in}
+B 5 -122.5 -32.5 -117.5 -27.5 {name=I_p
+dir=in}
+B 5 -122.5 27.5 -117.5 32.5 {name=I_n
+dir=in}
+B 5 117.5 -32.5 122.5 -27.5 {name=Q_p
+dir=out}
+B 5 117.5 27.5 122.5 32.5 {name=Q_n
+dir=out}
+B 5 -22.5 127.5 -17.5 132.5 {name=vtune
+dir=in}
+B 5 37.5 127.5 42.5 132.5 {name=SUB
+dir=inout}
+B 5 47.5 -162.5 52.5 -157.5 {name=nbias2
+dir=in}
+A 4 -20 -2.5 20.15564437074637 352.8749836510982 194.2500326978036 {}
+A 4 20 2.5 20.15564437074637 172.8749836510982 194.2500326978036 {}
+A 4 0 0 50.99019513592785 11.30993247402021 360 {}
+T {I+} -110 -60 0 0 0.4 0.4 {}
+T {I-} -110 0 0 0 0.4 0.4 {}
+T {Q+} 120 -60 0 1 0.4 0.4 {}
+T {Q-} 120 0 0 1 0.4 0.4 {}
+T {vdd} -30 -110 1 0 0.4 0.4 {}
+T {vss} 0 -110 1 0 0.4 0.4 {}
+T {nbias1} 30 -120 1 0 0.4 0.4 {}
+T {vtune} 0 60 0 1 0.4 0.4 {}
+T {@name} 90 70 0 0 0.4 0.4 {}
+T {SUB} 70 60 0 1 0.4 0.4 {}
+T {nbias2} 60 -120 1 0 0.4 0.4 {}
