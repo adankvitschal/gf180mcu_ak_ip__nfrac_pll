@@ -350,20 +350,51 @@ def add_crossunder(CSX, stack, unit, start_xy, exit_xy, track_width_um, z_ox_top
 # spiral -- see add_field_dump()'s own docstring for the exact HDF5
 # layout found). A shared module-level constant (not a hardcoded string
 # in two places) so the generator and the generic runner can't drift out
-# of sync on the name.
+# of sync on the name. Kept exactly as-is (still just the Metal5 dump)
+# for backward compat with the CURRENT single-dump runner contract
+# (generator.FIELD_DUMP_NAME + the CLI's single --field-png) -- see
+# FIELD_DUMP_NAMES below for the forward-looking multi-dump list this
+# module now also produces, not yet consumed by anything.
 FIELD_DUMP_NAME = "field_dump"
 
+# 2026-09-15: per-layer current-density dumps (metal5 winding, metal4
+# crossunder trace, via4 blocks, and a near-surface substrate slice) --
+# added to help diagnose whether a given geometry's capacitive-looking Y11
+# (see openems_inductor_status.md) is real substrate-dominated coupling or
+# an extraction bug, by letting someone actually LOOK at where current
+# concentrates instead of only inferring it from Y11(f) shape. Every name
+# here gets its own independently-dumped '<name>.h5' (CSXCAD's AddDump()
+# supports any number of independently-named dumps in one run -- this is
+# NOT a single dump split after the fact). openems_generator_runner.py
+# only knows how to render+copy out ONE fixed dump (FIELD_DUMP_NAME, via
+# --field-png) as of this writing -- rendering the other 3 needs a small,
+# separate runner-side change (loop over FIELD_DUMP_NAMES.items(), render
+# each via the SAME render_field_dump() already there, write each to e.g.
+# "<field-png-dir>/<label>.png") deliberately NOT made here since that
+# file lives in mh-analog-designer, out of scope for this repo/session.
+# Until that lands, the extra .h5 files still get written into the FDTD
+# run's own working directory on a real run (survives cleanup=True, same
+# as port_it_*/port_ut_* already do -- confirmed in this module's own
+# add_field_dump() docstring/history) -- recoverable later even without
+# the runner update, just not auto-rendered into a PNG yet.
+FIELD_DUMP_NAMES = {
+    "metal5": FIELD_DUMP_NAME,
+    "metal4": "field_dump_metal4",
+    "via4": "field_dump_via4",
+    "substrate": "field_dump_substrate",
+}
 
-def add_field_dump(CSX, box, z_ox_top, z_m5_top, dump_freq_hz):
-    """Adds a frequency-domain TOTAL CURRENT DENSITY dump (dump_type=13,
+
+def add_field_dump(CSX, name, box, z0, z1, dump_freq_hz):
+    """Adds one frequency-domain TOTAL CURRENT DENSITY dump (dump_type=13,
     file_type=1/HDF5 -- both confirmed valid via CSXCAD's own
     GetDumpType()/GetFileType() round-trip on a live CSPropDumpBox, not
-    just assumed from memory) as a box spanning Metal5's own z-range
-    (z_ox_top..z_m5_top), covering the full mesh footprint in x/y -- lets
-    analog_designer_core's generic runner render a current-concentration
-    PNG after FDTD.Run(), independent of which PDK/geometry produced the
-    structure (the RENDERING code is generic; only this box's placement
-    is geometry-specific, hence it lives here).
+    just assumed from memory) as a box spanning [z0, z1] (um, same
+    coordinate convention as everything else in this module), covering the
+    full mesh footprint in x/y. Generic over WHICH layer/name -- callers
+    below use this for metal5, metal4, via4, and a substrate slice, each
+    independently named (see FIELD_DUMP_NAMES) so they land as separate
+    '<name>.h5' files openEMS never conflates with each other.
 
     dump_freq_hz: which frequency to accumulate the DFT at during the
     time-domain run -- build_openems_structure() passes its own Gaussian
@@ -371,6 +402,13 @@ def add_field_dump(CSX, box, z_ox_top, z_m5_top, dump_freq_hz):
     point" snapshot; openEMS supports dumping at more than one frequency
     (AddFrequency() can be called repeatedly) if a future caller wants a
     sweep of current-density snapshots instead of just one.
+
+    z1-z0 should stay thin (comparable to one layer's own thickness) for
+    each individual dump -- render_field_dump() (analog_designer_core,
+    generic) averages every z-slice a dump box spans into one 2D image, so
+    a box much deeper than one physical layer blurs through-thickness
+    variation away instead of showing it (this is why the substrate dump
+    below uses a thin near-surface slice, not the full substrate depth).
 
     UNVERIFIED beyond the minimal probe run: confirmed the dump box/
     frequency setup and the resulting HDF5 group/dataset names
@@ -381,9 +419,9 @@ def add_field_dump(CSX, box, z_ox_top, z_m5_top, dump_freq_hz):
     run's dump looks wrong/empty, check this box's z-range actually
     overlaps real z mesh lines from the spiral's own SmoothMeshLines("z", ...)
     calls in build_openems_structure() first."""
-    dump = CSX.AddDump(FIELD_DUMP_NAME, dump_type=13, file_type=1)
+    dump = CSX.AddDump(name, dump_type=13, file_type=1)
     dump.AddFrequency(dump_freq_hz)
-    dump.AddBox([-box, -box, z_ox_top], [box, box, z_m5_top])
+    dump.AddBox([-box, -box, z0], [box, box, z1])
 
 
 def save_layout_preview(centerline, track_width_um, path):
@@ -626,7 +664,21 @@ def build_openems_structure(geometry, stack, f_max_hz, dump_field=False):
         port_dir, excite=excite_v_per_m)
 
     if dump_field:
-        add_field_dump(CSX, box, z_ox_top, z_m5_top, f0)
+        add_field_dump(CSX, FIELD_DUMP_NAMES["metal5"], box, z_ox_top, z_m5_top, f0)
+        # metal4/via4 z-ranges recomputed here to match add_crossunder()'s
+        # own internal math exactly (not returned from that call -- kept as
+        # a light, deliberate duplication rather than changing that
+        # function's return contract for a diagnostic-only feature).
+        m4_z0 = stack["metal4_z_start_m"] / unit
+        m4_z1 = m4_z0 + stack["metal4_thickness_m"] / unit
+        add_field_dump(CSX, FIELD_DUMP_NAMES["metal4"], box, m4_z0, m4_z1, f0)
+        add_field_dump(CSX, FIELD_DUMP_NAMES["via4"], box, m4_z1, z_ox_top, f0)
+        # Thin near-surface substrate slice (metal5's own thickness scale,
+        # right below z=0) rather than the full sub_thick depth -- see
+        # add_field_dump()'s own docstring for why a deep box would blur
+        # away exactly the near-surface concentration this is meant to show.
+        metal5_thickness_um = stack["metal5_thickness_m"] / unit
+        add_field_dump(CSX, FIELD_DUMP_NAMES["substrate"], box, -metal5_thickness_um, 0, f0)
 
     return FDTD, port_a
 
@@ -678,7 +730,13 @@ def fit_electrical_params(geometry, stack, em_result=None):
         n_fit = max(3, len(freqs) // 20)  # lowest ~5% of the sweep, well below SRF
         w = 2 * np.pi * freqs[:n_fit]
         z11 = 1.0 / y11[:n_fit]
-        l_half = float(np.mean(-np.imag(z11) / w)) / 2
+        # For a physical series inductor, Z11 = Rs + jwL, so Im(Z11) = +wL
+        # (NOT -wL -- this formula previously had a spurious leading minus
+        # that inverted the sign of every EM-fitted 'l', magnitude correct
+        # but sign backwards; confirmed against both a clean synthetic
+        # Rs+jwL sweep and a real FDTD loop run, see
+        # openems_inductor_status.md's 2026-09-15 entry).
+        l_half = float(np.mean(np.imag(z11) / w)) / 2
         rs_half = float(np.mean(np.real(z11))) / 2
     else:
         l_half = _PLACEHOLDER_L_HALF_H
