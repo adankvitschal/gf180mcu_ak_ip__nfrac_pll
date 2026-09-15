@@ -74,6 +74,16 @@ _PLACEHOLDER_CS_F = 103.1e-15
 
 FIELD_DUMP_NAME = "field_dump"  # fixed name openems_generator_runner.py looks for -- see inductor_spiral_generator.py's own docstring for the confirmed HDF5 layout this produces
 
+# 2026-09-15: per-layer current-density dumps -- metal5 winding + a
+# near-surface substrate slice (no metal4/via4 here, this topology has no
+# crossunder). Same rationale, same "not yet consumed by the runner beyond
+# FIELD_DUMP_NAME" caveat as inductor_spiral_generator.py's own
+# FIELD_DUMP_NAMES -- see that module's docstring for the full explanation.
+FIELD_DUMP_NAMES = {
+    "metal5": FIELD_DUMP_NAME,
+    "substrate": "field_dump_substrate",
+}
+
 
 def load_stack(corner="tt", path=_STACK_PATH):
     """Same metal5/oxide/substrate fields as inductor_spiral_generator.py's
@@ -163,15 +173,19 @@ def save_layout_preview(geometry, path):
     plt.close(fig)
 
 
-def add_field_dump(CSX, box, z_ox_top, z_m5_top, dump_freq_hz):
+def add_field_dump(CSX, name, box, z0, z1, dump_freq_hz):
     """Frequency-domain total-current-density dump, same API/shape as
     inductor_spiral_generator.py's own add_field_dump() (see that
-    function's docstring for the confirmed HDF5 layout) -- duplicated here
-    (not imported) since the dump box's footprint is geometry-specific,
-    same reasoning that module gives for keeping it PDK/geometry-local."""
-    dump = CSX.AddDump(FIELD_DUMP_NAME, dump_type=13, file_type=1)
+    function's docstring for the confirmed HDF5 layout and for why z1-z0
+    should stay thin, comparable to one physical layer's own thickness) --
+    duplicated here (not imported) since the dump box's footprint is
+    geometry-specific, same reasoning that module gives for keeping it
+    PDK/geometry-local. Generic over `name`/`z0`/`z1` so callers below can
+    use it for both the metal5 winding and a substrate slice, each landing
+    as an independently-named '<name>.h5'."""
+    dump = CSX.AddDump(name, dump_type=13, file_type=1)
     dump.AddFrequency(dump_freq_hz)
-    dump.AddBox([-box, -box, z_ox_top], [box, box, z_m5_top])
+    dump.AddBox([-box, -box, z0], [box, box, z1])
 
 
 def build_openems_structure(geometry, stack, f_max_hz, dump_field=False):
@@ -259,7 +273,13 @@ def build_openems_structure(geometry, stack, f_max_hz, dump_field=False):
         1, 50, [-half_gap, y_in, z_ox_top], [half_gap, y_out, z_m5_top], "x", excite=excite_v_per_m)
 
     if dump_field:
-        add_field_dump(CSX, box, z_ox_top, z_m5_top, f0)
+        add_field_dump(CSX, FIELD_DUMP_NAMES["metal5"], box, z_ox_top, z_m5_top, f0)
+        # Thin near-surface substrate slice (metal5's own thickness scale,
+        # right below z=0) rather than the full sub_thick depth -- see
+        # add_field_dump()'s own docstring for why a deep box would blur
+        # away exactly the near-surface concentration this is meant to show.
+        metal5_thickness_um = stack["metal5_thickness_m"] / unit
+        add_field_dump(CSX, FIELD_DUMP_NAMES["substrate"], box, -metal5_thickness_um, 0, f0)
 
     return FDTD, port_a
 
@@ -292,7 +312,14 @@ def fit_electrical_params(geometry, stack, em_result=None):
         n_fit = max(3, len(freqs) // 20)  # lowest ~5% of the sweep, well below SRF
         w = 2 * np.pi * freqs[:n_fit]
         z11 = 1.0 / y11[:n_fit]
-        l_half = float(np.mean(-np.imag(z11) / w)) / 2
+        # For a physical series inductor, Z11 = Rs + jwL, so Im(Z11) = +wL
+        # (NOT -wL -- an earlier version of this formula, ported verbatim
+        # from inductor_spiral_generator.py, had a spurious leading minus
+        # here that inverted the sign of every EM-fitted 'l', magnitude
+        # correct but sign backwards; confirmed against both a clean
+        # synthetic Rs+jwL sweep and a real FDTD loop run, see
+        # openems_inductor_status.md's 2026-09-15 entry).
+        l_half = float(np.mean(np.imag(z11) / w)) / 2
         rs_half = float(np.mean(np.real(z11))) / 2
     else:
         l_half = _PLACEHOLDER_L_HALF_H
