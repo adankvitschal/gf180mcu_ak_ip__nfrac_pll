@@ -1,0 +1,436 @@
+{
+    "parameters": {
+        "m1_length": {
+            "description": "Channel length of M1 (PFET pull-up). DIV2 cell, stage-1 latch PFET pull-up (clocked, gated by clk).",
+            "unit": "um",
+            "default": "0.5u",
+            "min": "0.5u",
+            "max": "10u",
+            "grid": "0.01u"
+        },
+        "m1_width": {
+            "description": "Channel width of M1 (PFET pull-up).",
+            "unit": "um",
+            "default": "10u",
+            "min": "0.5u",
+            "max": "100u",
+            "grid": "0.01u"
+        },
+        "m1_fingers": {
+            "description": "Finger count (nf) of M1 -- layout/parasitic split of the total width across parallel gate fingers, does not change drive strength.",
+            "unit": "",
+            "default": "2",
+            "min": "1",
+            "max": "20",
+            "integer": true
+        },
+        "m2_length": {
+            "description": "Channel length of M2 (NFET pull-down / latch). DIV2 cell, stage-1 latch NFET pull-down (clocked, gated by clk).",
+            "unit": "um",
+            "default": "0.6u",
+            "min": "0.6u",
+            "max": "10u",
+            "grid": "0.01u"
+        },
+        "m2_width": {
+            "description": "Channel width of M2 (NFET pull-down / latch).",
+            "unit": "um",
+            "default": "5u",
+            "min": "0.5u",
+            "max": "100u",
+            "grid": "0.01u"
+        },
+        "m2_fingers": {
+            "description": "Finger count (nf) of M2 -- layout/parasitic split of the total width across parallel gate fingers, does not change drive strength.",
+            "unit": "",
+            "default": "2",
+            "min": "1",
+            "max": "20",
+            "integer": true
+        },
+        "m3_length": {
+            "description": "Channel length of M3 (PFET pull-up). DIV2 cell, stage-1 latch second PFET pull-up (data-path, gated by the stage-1 internal node).",
+            "unit": "um",
+            "default": "0.5u",
+            "min": "0.5u",
+            "max": "10u",
+            "grid": "0.01u"
+        },
+        "m3_width": {
+            "description": "Channel width of M3 (PFET pull-up).",
+            "unit": "um",
+            "default": "10u",
+            "min": "0.5u",
+            "max": "100u",
+            "grid": "0.01u"
+        },
+        "m3_fingers": {
+            "description": "Finger count (nf) of M3 -- layout/parasitic split of the total width across parallel gate fingers, does not change drive strength.",
+            "unit": "",
+            "default": "2",
+            "min": "1",
+            "max": "20",
+            "integer": true
+        },
+        "m4_length": {
+            "description": "Channel length of M4 (NFET pull-down / latch). DIV2 cell, stage-1 latch second NFET pull-down (data-path, gated by the stage-1 internal node).",
+            "unit": "um",
+            "default": "0.6u",
+            "min": "0.6u",
+            "max": "10u",
+            "grid": "0.01u"
+        },
+        "m4_width": {
+            "description": "Channel width of M4 (NFET pull-down / latch).",
+            "unit": "um",
+            "default": "5u",
+            "min": "0.5u",
+            "max": "100u",
+            "grid": "0.01u"
+        },
+        "m4_fingers": {
+            "description": "Finger count (nf) of M4 -- layout/parasitic split of the total width across parallel gate fingers, does not change drive strength.",
+            "unit": "",
+            "default": "2",
+            "min": "1",
+            "max": "20",
+            "integer": true
+        },
+        "m5_length": {
+            "description": "Channel length of M5 (NFET pull-down / latch). DIV2 cell, stage-1 extra clocked NFET pull-down implementing the modulus-control 'OR' path onto the stage-1 output node -- together with ME0 (en_*), this is what lets the external 'sw' feedback (routed through MW0, sw_*) force an extra half-cycle when enabled, turning the cell's nominal divide-by-2 into divide-by-3.",
+            "unit": "um",
+            "default": "0.6u",
+            "min": "0.6u",
+            "max": "10u",
+            "grid": "0.01u"
+        },
+        "m5_width": {
+            "description": "Channel width of M5 (NFET pull-down / latch).",
+            "unit": "um",
+            "default": "5u",
+            "min": "0.5u",
+            "max": "100u",
+            "grid": "0.01u"
+        },
+        "m5_fingers": {
+            "description": "Finger count (nf) of M5 -- layout/parasitic split of the total width across parallel gate fingers, does not change drive strength.",
+            "unit": "",
+            "default": "2",
+            "min": "1",
+            "max": "20",
+            "integer": true
+        },
+        "m6_length": {
+            "description": "Channel length of M6 (PFET pull-up). DIV2 cell, stage-2 latch PFET pull-up (plain TSPC latch closing the 2/3-cell's feedback loop).",
+            "unit": "um",
+            "default": "0.5u",
+            "min": "0.5u",
+            "max": "10u",
+            "grid": "0.01u"
+        },
+        "m6_width": {
+            "description": "Channel width of M6 (PFET pull-up).",
+            "unit": "um",
+            "default": "10u",
+            "min": "0.5u",
+            "max": "100u",
+            "grid": "0.01u"
+        },
+        "m6_fingers": {
+            "description": "Finger count (nf) of M6 -- layout/parasitic split of the total width across parallel gate fingers, does not change drive strength.",
+            "unit": "",
+            "default": "2",
+            "min": "1",
+            "max": "20",
+            "integer": true
+        },
+        "m7_length": {
+            "description": "Channel length of M7 (NFET pull-down / latch). DIV2 cell, stage-2 latch NFET pull-down.",
+            "unit": "um",
+            "default": "0.6u",
+            "min": "0.6u",
+            "max": "10u",
+            "grid": "0.01u"
+        },
+        "m7_width": {
+            "description": "Channel width of M7 (NFET pull-down / latch).",
+            "unit": "um",
+            "default": "5u",
+            "min": "0.5u",
+            "max": "100u",
+            "grid": "0.01u"
+        },
+        "m7_fingers": {
+            "description": "Finger count (nf) of M7 -- layout/parasitic split of the total width across parallel gate fingers, does not change drive strength.",
+            "unit": "",
+            "default": "2",
+            "min": "1",
+            "max": "20",
+            "integer": true
+        },
+        "m8_length": {
+            "description": "Channel length of M8 (NFET pull-down / latch). DIV2 cell, stage-2 extra clocked NFET pull-down (clk-gated, completes the stage-2 TSPC latch's dynamic evaluate/hold behavior).",
+            "unit": "um",
+            "default": "0.6u",
+            "min": "0.6u",
+            "max": "10u",
+            "grid": "0.01u"
+        },
+        "m8_width": {
+            "description": "Channel width of M8 (NFET pull-down / latch).",
+            "unit": "um",
+            "default": "5u",
+            "min": "0.5u",
+            "max": "100u",
+            "grid": "0.01u"
+        },
+        "m8_fingers": {
+            "description": "Finger count (nf) of M8 -- layout/parasitic split of the total width across parallel gate fingers, does not change drive strength.",
+            "unit": "",
+            "default": "2",
+            "min": "1",
+            "max": "20",
+            "integer": true
+        },
+        "m9_length": {
+            "description": "Channel length of M9 (PFET pull-up). DIV3 cell, stage-1 latch PFET pull-up -- second cascaded 2/3-cell, same role as m1 one stage down.",
+            "unit": "um",
+            "default": "0.5u",
+            "min": "0.5u",
+            "max": "10u",
+            "grid": "0.01u"
+        },
+        "m9_width": {
+            "description": "Channel width of M9 (PFET pull-up).",
+            "unit": "um",
+            "default": "10u",
+            "min": "0.5u",
+            "max": "100u",
+            "grid": "0.01u"
+        },
+        "m9_fingers": {
+            "description": "Finger count (nf) of M9 -- layout/parasitic split of the total width across parallel gate fingers, does not change drive strength.",
+            "unit": "",
+            "default": "2",
+            "min": "1",
+            "max": "20",
+            "integer": true
+        },
+        "m10_length": {
+            "description": "Channel length of M10 (NFET pull-down / latch). DIV3 cell, stage-1 latch NFET pull-down.",
+            "unit": "um",
+            "default": "0.6u",
+            "min": "0.6u",
+            "max": "10u",
+            "grid": "0.01u"
+        },
+        "m10_width": {
+            "description": "Channel width of M10 (NFET pull-down / latch).",
+            "unit": "um",
+            "default": "5u",
+            "min": "0.5u",
+            "max": "100u",
+            "grid": "0.01u"
+        },
+        "m10_fingers": {
+            "description": "Finger count (nf) of M10 -- layout/parasitic split of the total width across parallel gate fingers, does not change drive strength.",
+            "unit": "",
+            "default": "2",
+            "min": "1",
+            "max": "20",
+            "integer": true
+        },
+        "m11_length": {
+            "description": "Channel length of M11 (NFET pull-down / latch). DIV3 cell, stage-1 extra clocked NFET pull-down (same modulus-control role as m5, one stage down).",
+            "unit": "um",
+            "default": "0.6u",
+            "min": "0.6u",
+            "max": "10u",
+            "grid": "0.01u"
+        },
+        "m11_width": {
+            "description": "Channel width of M11 (NFET pull-down / latch).",
+            "unit": "um",
+            "default": "5u",
+            "min": "0.5u",
+            "max": "100u",
+            "grid": "0.01u"
+        },
+        "m11_fingers": {
+            "description": "Finger count (nf) of M11 -- layout/parasitic split of the total width across parallel gate fingers, does not change drive strength.",
+            "unit": "",
+            "default": "2",
+            "min": "1",
+            "max": "20",
+            "integer": true
+        },
+        "m12_length": {
+            "description": "Channel length of M12 (PFET pull-up). DIV3 cell, stage-2 latch PFET pull-up.",
+            "unit": "um",
+            "default": "0.5u",
+            "min": "0.5u",
+            "max": "10u",
+            "grid": "0.01u"
+        },
+        "m12_width": {
+            "description": "Channel width of M12 (PFET pull-up).",
+            "unit": "um",
+            "default": "10u",
+            "min": "0.5u",
+            "max": "100u",
+            "grid": "0.01u"
+        },
+        "m12_fingers": {
+            "description": "Finger count (nf) of M12 -- layout/parasitic split of the total width across parallel gate fingers, does not change drive strength.",
+            "unit": "",
+            "default": "2",
+            "min": "1",
+            "max": "20",
+            "integer": true
+        },
+        "m13_length": {
+            "description": "Channel length of M13 (NFET pull-down / latch). DIV3 cell, stage-2 latch NFET pull-down.",
+            "unit": "um",
+            "default": "0.6u",
+            "min": "0.6u",
+            "max": "10u",
+            "grid": "0.01u"
+        },
+        "m13_width": {
+            "description": "Channel width of M13 (NFET pull-down / latch).",
+            "unit": "um",
+            "default": "5u",
+            "min": "0.5u",
+            "max": "100u",
+            "grid": "0.01u"
+        },
+        "m13_fingers": {
+            "description": "Finger count (nf) of M13 -- layout/parasitic split of the total width across parallel gate fingers, does not change drive strength.",
+            "unit": "",
+            "default": "2",
+            "min": "1",
+            "max": "20",
+            "integer": true
+        },
+        "m14_length": {
+            "description": "Channel length of M14 (NFET pull-down / latch). DIV3 cell, stage-2 internal node NFET feeding the output buffer stage.",
+            "unit": "um",
+            "default": "0.6u",
+            "min": "0.6u",
+            "max": "10u",
+            "grid": "0.01u"
+        },
+        "m14_width": {
+            "description": "Channel width of M14 (NFET pull-down / latch).",
+            "unit": "um",
+            "default": "5u",
+            "min": "0.5u",
+            "max": "100u",
+            "grid": "0.01u"
+        },
+        "m14_fingers": {
+            "description": "Finger count (nf) of M14 -- layout/parasitic split of the total width across parallel gate fingers, does not change drive strength.",
+            "unit": "",
+            "default": "2",
+            "min": "1",
+            "max": "20",
+            "integer": true
+        },
+        "m15_length": {
+            "description": "Channel length of M15 (PFET pull-up). Output buffer inverter PFET pull-up -- drives the block's 'out' pin (and the testbench's Cload), sized larger than the core latch devices for adequate output drive.",
+            "unit": "um",
+            "default": "0.5u",
+            "min": "0.5u",
+            "max": "10u",
+            "grid": "0.01u"
+        },
+        "m15_width": {
+            "description": "Channel width of M15 (PFET pull-up).",
+            "unit": "um",
+            "default": "20u",
+            "min": "0.5u",
+            "max": "100u",
+            "grid": "0.01u"
+        },
+        "m15_fingers": {
+            "description": "Finger count (nf) of M15 -- layout/parasitic split of the total width across parallel gate fingers, does not change drive strength.",
+            "unit": "",
+            "default": "2",
+            "min": "1",
+            "max": "20",
+            "integer": true
+        },
+        "m16_length": {
+            "description": "Channel length of M16 (NFET pull-down / latch). Output buffer inverter NFET pull-down -- see m15.",
+            "unit": "um",
+            "default": "0.6u",
+            "min": "0.6u",
+            "max": "10u",
+            "grid": "0.01u"
+        },
+        "m16_width": {
+            "description": "Channel width of M16 (NFET pull-down / latch).",
+            "unit": "um",
+            "default": "10u",
+            "min": "0.5u",
+            "max": "100u",
+            "grid": "0.01u"
+        },
+        "m16_fingers": {
+            "description": "Finger count (nf) of M16 -- layout/parasitic split of the total width across parallel gate fingers, does not change drive strength.",
+            "unit": "",
+            "default": "2",
+            "min": "1",
+            "max": "20",
+            "integer": true
+        },
+        "en_length": {
+            "description": "Channel length of ME0/ME1, the two per-cell enable/modulus-control NFETs (etspc_d2d3.sch's 'en' pin gates both instances via this one shared parameter group). Together with M5/M11, these implement each 2/3-cell's swallow path.",
+            "unit": "um",
+            "default": "0.6u",
+            "min": "0.6u",
+            "max": "10u",
+            "grid": "0.01u"
+        },
+        "en_width": {
+            "description": "Channel width of ME0/ME1.",
+            "unit": "um",
+            "default": "5u",
+            "min": "0.5u",
+            "max": "100u",
+            "grid": "0.01u"
+        },
+        "en_fingers": {
+            "description": "Finger count (nf) of ME0/ME1.",
+            "unit": "",
+            "default": "2",
+            "min": "1",
+            "max": "20",
+            "integer": true
+        },
+        "sw_length": {
+            "description": "Channel length of MW0, the modulus-control switch NFET gated by the block's own 'sw' input pin -- couples the DIV2 cell's internal stage-1 node to the DIV3 cell's own internal feedback node when enabled, coupling the two cascaded 2/3-cells' modulus control together so a single external 'sw' bit shifts the WHOLE block's overall division ratio by one (see tb/divider/tb_divider_funct.py for how the actual ratio for each 'sw' level is measured rather than assumed -- the sw=low/high -> ratio mapping has not been confirmed against a real simulation yet).",
+            "unit": "um",
+            "default": "0.6u",
+            "min": "0.6u",
+            "max": "10u",
+            "grid": "0.01u"
+        },
+        "sw_width": {
+            "description": "Channel width of MW0.",
+            "unit": "um",
+            "default": "5u",
+            "min": "0.5u",
+            "max": "100u",
+            "grid": "0.01u"
+        },
+        "sw_fingers": {
+            "description": "Finger count (nf) of MW0.",
+            "unit": "",
+            "default": "2",
+            "min": "1",
+            "max": "20",
+            "integer": true
+        }
+    }
+}

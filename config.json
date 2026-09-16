@@ -106,6 +106,19 @@
                 }
             }
         },
+        "divider": {
+            "symbol": "divider.sym",
+            "topologies": {
+                "etspc_d2d3": {
+                    "description": "Extended True Single Phase Clock (E-TSPC) divide-by-2/3 prescaler, two cascaded classic Vaucher-style 2/3-cells (JSSC 2000 'A Family of Low-Power Truly Modular Programmable Dividers...') built from nfet_05v0/pfet_05v0 (GF180MCU 5V thick-oxide devices, this block's own 5.0V 'vdd' rail rather than the VCO's 3.3V vco_vdd). 'sw' is a single external bit that couples the two cells' own modulus-control paths together (via MW0), shifting the WHOLE block's overall division ratio by one step when toggled -- see tb/divider/tb_divider_funct.py, which MEASURES the actual ratio for each 'sw' level rather than assuming which level means which ratio (not yet confirmed against a real simulation). KNOWN GAP: etspc_d2d3.sch's own PFET sources (M1/M3/M6/M9/M12/M15) are not yet tied to any 'vdd' net, even though sch/divider.sym already reserves a 'vdd' pin for this topology -- the schematic cannot simulate correctly until that wiring is added (in the xschem GUI, where pin/wire coincidence can be checked visually) alongside a decision on whether the symbol's separate 'SUB' pin is actually needed by these devices or is unused copy-paste from the VCO's own hierarchical symbol template.",
+                    "references": [
+                        "C. Vaucher et al., 'A Family of Low-Power Truly Modular Programmable Dividers in Standard 0.35-um CMOS Technology', IEEE JSSC, July 2000 (E-TSPC 2/3-cell reference topology)"
+                    ],
+                    "schematic": "divider/etspc_d2d3.sch",
+                    "parameters_file": "sch/divider/etspc_d2d3.params.json"
+                }
+            }
+        },
         "top": {
             "symbol": "top.sym"
         }
@@ -167,6 +180,45 @@
                 "conditions": {
                     "corner": ["tt"],
                     "typical": {"corner": "tt"}
+                }
+            }
+        },
+        "divider": {
+            "funct": {
+                "simulator": "ngspice",
+                "testbench": "tb/divider/tb_divider_funct.sch",
+                "parser": "tb/divider/tb_divider_funct.py",
+                "outputs": [
+                    {
+                        "description": "Measured division ratio (steady-state output period / input clk period) -- informational, see the 'ratio error' metric for the actual pass/fail check. Confirmed by a real simulation (2026-09-14, clk_freq=1.05e9, tt/25) that sw=0 gives exactly 2 (ratio_error ~7e-8); sw=5.0 (vdd) unexpectedly ALSO measured 2, not the assumed 3 -- open issue, see the topology's own config.json description and the MW0/modulus-control wiring.",
+                        "unit": ""
+                    },
+                    {
+                        "description": "Deviation of the measured division ratio from its own nearest integer -- the real functional-correctness check (should be ~0 regardless of which 'sw' level/ratio a given run is; a miscounting divider shows up here as a large, non-integer ratio instead)",
+                        "unit": "",
+                        "maximum": 0.05
+                    },
+                    {
+                        "description": "Output duty cycle (steady-state, informational)",
+                        "unit": "%"
+                    },
+                    {
+                        "description": "Output duty cycle's deviation from the ideal 50% -- cycle asymmetry matters beyond aesthetics here: in the real PLL this divider feeds a delta-sigma-modulated dual-modulus chain, and a duty-cycle/delay difference BETWEEN the 'sw' states (compare this metric's value across the sw=0 and sw=5.0 conditions) shows up as a periodic disturbance synchronized with the modulator's own switching pattern -- a fractional-spur mechanism, not just a cosmetic imbalance.",
+                        "unit": "%"
+                    },
+                    {
+                        "description": "Average VDD power over the last few steady-state output periods (v(vdd)*i(vdd) averaged over a real transient window, not a bare .op point -- see this topology's own config.json description for why a DC operating point has no meaningful consumption figure for a clocked dynamic circuit)",
+                        "unit": "uW"
+                    }
+                ],
+                "conditions": {
+                    "sw": ["0", "5.0"],
+                    "clk_freq": ["9e8", "1.05e9", "1.2e9"],
+                    "clk_amp": ["2.5"],
+                    "clk_dc": ["2.5"],
+                    "temperature": ["25"],
+                    "corner": ["tt"],
+                    "typical": {"corner": "tt", "temperature": "25", "sw": "0", "clk_freq": "1.05e9"}
                 }
             }
         },
