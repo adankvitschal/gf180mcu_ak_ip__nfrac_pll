@@ -38,19 +38,39 @@
             },
             "cox": {
                 "unit": "F",
-                "description": "Oxide/substrate coupling capacitance at each terminal -- real geometry x GF180MCU Metal5 areacap data, always computed for real (no FDTD needed)."
+                "description": "Oxide/substrate coupling capacitance at each OUTER terminal (a, b) -- real geometry x GF180MCU Metal5 area AND perimeter (fringe) capacitance data, always computed for real (no FDTD needed). 1/4 of the trace's total oxide-coupling capacitance (trapezoidal 3-tap split: each outer terminal 1/4, 'ct' 1/2 -- see 'cox_ct'). The fringe term (perimeter x perimcap) can dominate the area term for a narrow trace -- both are included, not just area."
             },
             "rsub": {
                 "unit": "ohm",
-                "description": "Substrate loss resistance completing each terminal's oxide-coupling path -- PLACEHOLDER quality, not yet derived from any EM run (see gf180mcu_stack.json's substrate.resistivity_ohm_cm note)."
+                "description": "Substrate spreading-loss resistance completing each outer terminal's oxide-coupling path -- real geometry-based estimate (GF180MCU isolation-substrate sheet resistance x trace area share) as a fallback, refined via a physics-informed staged fit against real EM Y11 data near the resonance region when available (rs/l/cox/cs held fixed, only rsub/csub float -- see inductor_loop_generator.py's fit_electrical_params())."
             },
             "csub": {
                 "unit": "F",
-                "description": "Substrate capacitance in parallel with rsub at each terminal -- PLACEHOLDER quality, same caveat as rsub."
+                "description": "Substrate capacitance in parallel with rsub at each outer terminal -- placeholder-quality fallback, refined via the same staged EM fit as rsub when real data is available."
             },
             "cs": {
                 "unit": "F",
-                "description": "Coupling capacitance from each terminal to the center tap (ct) -- PLACEHOLDER quality; this generator's one-port EM methodology has no distinct 'ct' measurement yet."
+                "description": "Coupling capacitance from each terminal to the center tap (ct) -- fixed at 0.0 for this topology: a single-turn rectangular loop has no adjacent-turn crossover to model (unlike the multi-turn 'spiral' topology, which keeps a real placeholder here)."
+            },
+            "cox_ct": {
+                "unit": "F",
+                "description": "Oxide/substrate coupling capacitance at the center tap (ct) -- real geometry x GF180MCU Metal5 area AND perimeter (fringe) capacitance data, always computed for real, same quality as 'cox' (1/2 of the trace's total capacitance, vs 1/4 at each outer terminal -- 'ct' sits between both winding halves)."
+            },
+            "rsub_ct": {
+                "unit": "ohm",
+                "description": "Substrate spreading-loss resistance at the center tap -- real geometry-based estimate, same formula family as 'rsub' (half the value, matching cox_ct's double area share). NOT independently EM-fittable -- see 'csub_ct'."
+            },
+            "csub_ct": {
+                "unit": "F",
+                "description": "Substrate capacitance at the center tap -- NOT independently EM-fittable: this branch sits on the a<->b mirror-symmetry line, so it carries zero current in the one-port a<->b Y11 measurement this generator fits against, regardless of its own value (proven in pi_model_fit.py's assert_ct_tap_unobservable()). Propagated from the fitted/placeholder outer 'csub' by the same 2x area ratio as cox_ct/rsub_ct -- a physically-motivated scaling, not an independent fit. Its only role is fidelity for the real VCO tank's substrate-noise-coupling path (ct->vdd, sub->SUB in the real circuit, not floating as in this one-port EM measurement) -- it does not affect this generator's own Y11 fit quality."
+            },
+            "rp_eddy": {
+                "unit": "ohm",
+                "description": "Resistance of the eddy-current/skin-proximity loss branch (Rp_eddy1/Rp_eddy2, in series with lp_eddy, the whole branch wired in PARALLEL with each half's own inductor L1/L2) -- an ORDINARY (no mutual inductance) representation of the same physical mechanism the literature models as magnetic substrate coupling / eddy currents induced by the winding's own field: this L-parallel-(R-series-L) shape is the classical T-equivalent circuit of a shorted-secondary transformer, written with plain components. A DIFFERENT mechanism from the electrostatic Cox/Rsub/Csub branches. Fit directly against real EM Y11 data (pi_model_fit.fit_eddy_branch()) when available -- experimentally explains a real post-resonance Im(Y11) feature the electrostatic branch alone cannot (full-band RMS error dropped ~42%->~1.1% on a real cached run). Set to a huge value (1e9 ohm, effectively an open circuit) when no real EM fit has run yet -- the parallel branch then has no effect and L1/L2 behave as if it weren't there."
+            },
+            "lp_eddy": {
+                "unit": "H",
+                "description": "Inductance of the eddy-current/skin-proximity loss branch (Lp_eddy1/Lp_eddy2, in series with rp_eddy) -- see 'rp_eddy' for the full explanation. A plain resistor alone in parallel with L1/L2 (no extra inductor) was tried and empirically rejected: its high-frequency limit is a constant resistance, not the reduced-but-still-inductive reactance the real EM data shows, so this extra inductor is load-bearing, not decorative. Irrelevant when rp_eddy is huge (placeholder path) since an effectively-open branch can't affect Y11 regardless of its own inductance."
             }
         }
     }

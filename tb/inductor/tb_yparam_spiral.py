@@ -127,13 +127,40 @@ def evaluate(runs, outputs, typical, plot_base=None):
     ]
 
 
+def _fitted_y11_model(fitted, freqs):
+    """Y11(f) implied by the fitted pi-model params -- uses the fullest
+    model the available fitted.params.json keys support: the eddy-current/
+    skin-proximity loss branch (pi_model_fit.y11_with_eddy_branch(), an
+    ordinary L-parallel-(R-series-L) branch, no mutual inductance) when
+    `rp_eddy`/`lp_eddy` are present (2026-09-15 -- currently only the
+    'loop' topology's fit_electrical_params() produces them; 'spiral'
+    still returns just the original 6 keys, falling back below), otherwise
+    the plain 2-tap pi-model (pi_model_fit.y11_two_tap_pi_model()) every
+    topology's fitted.params.json always has enough keys for. Both
+    functions already return the WHOLE-winding Y11 directly from the
+    per-half rs/l/etc. values fitted.params.json stores (via their own
+    0.5*(Yh+Ysub) collapse) -- no manual x2/"per-half" bookkeeping needed
+    here, unlike the plain Rs+jwL reconstruction this replaced.
+    `cox_ct`/`rsub_ct`/`csub_ct` (when present) are deliberately NOT used
+    here -- they're provably invisible to Y11 when 'sub' floats, exactly
+    this one-port measurement's own convention (see pi_model_fit.py's
+    assert_ct_tap_unobservable()), so including them would be a no-op."""
+    pi_model_fit = _load_generator("pi_model_fit.py")
+    freqs = np.asarray(freqs)
+    rs, l, cox = fitted["rs"], fitted["l"], fitted["cox"]
+    rsub, csub, cs = fitted["rsub"], fitted["csub"], fitted["cs"]
+    if "rp_eddy" in fitted and "lp_eddy" in fitted:
+        return pi_model_fit.y11_with_eddy_branch(
+            freqs, rs, l, cox, rsub, csub, cs, fitted["rp_eddy"], fitted["lp_eddy"])
+    return pi_model_fit.y11_two_tap_pi_model(freqs, rs, l, cox, rsub, csub, cs)
+
+
 def _save_qf_plot(runs, path):
-    # Also overlays Q(f) implied by the fitted series-Rs+jwL model alone
-    # (same Rs_total=2*fitted['rs']/L_total=2*fitted['l'] reconstruction as
-    # _save_fit_plot(), same per-half-undoing reasoning -- see that
-    # function's own docstring) whenever fitted.params.json was found, so
-    # this plot answers "does the lumped model's own Q match the simulated
-    # Q" directly, not just Re/Im(Y11) shape agreement.
+    # Also overlays Q(f) implied by the fitted pi-model (see
+    # _fitted_y11_model()'s own docstring for which model that is)
+    # whenever fitted.params.json was found, so this plot answers "does
+    # the lumped model's own Q match the simulated Q" directly, not just
+    # Re/Im(Y11) shape agreement.
     fig, ax = plt.subplots(figsize=(5, 3.5))
     for r in runs:
         freqs = np.array(r["freqs"])
@@ -141,12 +168,9 @@ def _save_qf_plot(runs, path):
         ax.plot(freqs_ghz, r["q"], label="EM (openEMS)")
         fitted = r.get("fitted")
         if fitted:
-            rs_total = 2 * fitted["rs"]
-            l_total = 2 * fitted["l"]
-            w = 2 * np.pi * freqs
-            y_model = 1.0 / (rs_total + 1j * w * l_total)
+            y_model = _fitted_y11_model(fitted, freqs)
             q_model = -y_model.imag / y_model.real
-            ax.plot(freqs_ghz, q_model, "--", label="Rs+jwL fit")
+            ax.plot(freqs_ghz, q_model, "--", label="pi-model fit")
     ax.set_xscale("log")
     ax.set_xlabel("frequency (GHz)")
     ax.set_ylabel("Q")
@@ -185,17 +209,17 @@ def _save_z_plot(runs, path):
 
 def _save_fit_plot(runs, path):
     """Overlays the raw EM-extracted Y11(f) against the Y11(f) implied by
-    the fitted series-Rs+jwL model alone (Rs_total=2*fitted['rs'],
-    L_total=2*fitted['l'] -- fitted.params.json stores PER-HALF values, see
-    inductor_spiral_generator.py's/inductor_loop_generator.py's own
-    fit_electrical_params() docstring; x2 undoes that split since the raw
-    Y11 here was measured across the WHOLE one-port winding, not half of
-    it). Shades the low-frequency window fit_electrical_params() actually
-    averaged over (its own n_fit = max(3, len(freqs)//20) lowest points) --
-    everything outside that shaded band is the model EXTRAPOLATING, not
-    fitted, so a visible divergence there is expected/normal, not
-    necessarily a bug; a divergence INSIDE the shaded band would mean the
-    fit itself is bad."""
+    the fitted pi-model (see _fitted_y11_model()'s own docstring for which
+    model that is -- the fullest one the available fitted.params.json keys
+    support, not just the bare series Rs+jwL this plot used before
+    2026-09-15). Shades the low-frequency window fit_electrical_params()
+    actually averaged over for its rs/l slope fit (its own
+    n_fit = max(3, len(freqs)//20) lowest points) -- everything outside
+    that shaded band is, at minimum, extrapolating the rs/l fit (though
+    the eddy branch, when present, is specifically FIT to the whole band,
+    not just this window -- see pi_model_fit.fit_eddy_branch()), so a
+    visible divergence there isn't automatically a bug; a divergence
+    INSIDE the shaded band would mean the rs/l fit itself is bad."""
     fitted = runs[0].get("fitted")
     if not fitted:
         fig, ax = plt.subplots(figsize=(5, 3.5))
@@ -205,25 +229,21 @@ def _save_fit_plot(runs, path):
         plt.close(fig)
         return
 
-    rs_total = 2 * fitted["rs"]
-    l_total = 2 * fitted["l"]
-
     fig, (ax_re, ax_im) = plt.subplots(2, 1, figsize=(5, 6), sharex=True)
     for r in runs:
         freqs = np.array(r["freqs"])
         freqs_ghz = freqs / 1e9
         y_em = np.array(r["re"]) + 1j * np.array(r["im"])
-        w = 2 * np.pi * freqs
-        y_model = 1.0 / (rs_total + 1j * w * l_total)
+        y_model = _fitted_y11_model(fitted, freqs)
 
         n_fit = max(3, len(freqs) // 20)
         for ax in (ax_re, ax_im):
             ax.axvspan(freqs_ghz[0], freqs_ghz[n_fit - 1], color="gray", alpha=0.15,
                        label="fit window" if ax is ax_re else None)
         ax_re.plot(freqs_ghz, y_em.real, color="tab:blue", label="Re(Y11) EM")
-        ax_re.plot(freqs_ghz, y_model.real, "--", color="tab:blue", alpha=0.7, label="Re(Y11) Rs+jwL fit")
+        ax_re.plot(freqs_ghz, y_model.real, "--", color="tab:blue", alpha=0.7, label="Re(Y11) pi-model fit")
         ax_im.plot(freqs_ghz, y_em.imag, color="tab:orange", label="Im(Y11) EM")
-        ax_im.plot(freqs_ghz, y_model.imag, "--", color="tab:orange", alpha=0.7, label="Im(Y11) Rs+jwL fit")
+        ax_im.plot(freqs_ghz, y_model.imag, "--", color="tab:orange", alpha=0.7, label="Im(Y11) pi-model fit")
 
     ax_im.set_xscale("log")  # sharex=True propagates this to ax_re too
     ax_re.set_ylabel("Re(Y11) (S)")

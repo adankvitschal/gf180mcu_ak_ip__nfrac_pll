@@ -55,13 +55,18 @@ own documented simplifications):
 import json
 import math
 import os
+import sys
 
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+_THIS_DIR = os.path.dirname(__file__)
+if _THIS_DIR not in sys.path:
+    sys.path.insert(0, _THIS_DIR)
+from pi_model_fit import fit_rsub_csub_staged, fit_eddy_branch  # noqa: E402 (sys.path setup must come first)
 
-_STACK_PATH = os.path.join(os.path.dirname(__file__), "gf180mcu_stack.json")
+_STACK_PATH = os.path.join(_THIS_DIR, "gf180mcu_stack.json")
 
 # Same generic placeholder-quality constants as inductor_spiral_generator.py
 # (see that module's own docstring for why) -- kept as separate literals
@@ -70,7 +75,6 @@ _STACK_PATH = os.path.join(os.path.dirname(__file__), "gf180mcu_stack.json")
 _PLACEHOLDER_L_HALF_H = 2.895e-9
 _PLACEHOLDER_RS_HALF_OHM = 1.7645
 _PLACEHOLDER_CSUB_F = 103.1e-15
-_PLACEHOLDER_CS_F = 103.1e-15
 
 FIELD_DUMP_NAME = "field_dump"  # fixed name openems_generator_runner.py looks for -- see inductor_spiral_generator.py's own docstring for the confirmed HDF5 layout this produces
 
@@ -88,7 +92,14 @@ FIELD_DUMP_NAMES = {
 def load_stack(corner="tt", path=_STACK_PATH):
     """Same metal5/oxide/substrate fields as inductor_spiral_generator.py's
     own load_stack() -- metal4/via4 deliberately omitted, this topology has
-    no crossunder."""
+    no crossunder. Also surfaces `substrate_isosub_sheet_r_ohm_per_sq`
+    (real, GF180MCU-sourced -- 'resist (pwell,isosub)/well' in
+    gf180mcuD.tech), which fit_electrical_params() uses for a physically-
+    motivated rsub/rsub_ct spreading-resistance estimate (2026-09-15:
+    previously loaded into gf180mcu_stack.json but never consumed anywhere --
+    fit_electrical_params() used to assign the substrate's bulk resistivity
+    in ohm*cm directly as rsub in ohms, a real unit-mismatch bug, see this
+    module's own fit_electrical_params() docstring)."""
     with open(path) as f:
         stack = json.load(f)
     m5 = stack["metal5"]
@@ -98,9 +109,11 @@ def load_stack(corner="tt", path=_STACK_PATH):
         "metal5_thickness_m": m5["thickness_m"]["value"],
         "metal5_z_start_m": m5["z_start_m"]["value"],
         "metal5_areacap_aF_per_um2": m5["areacap_to_substrate_aF_per_um2"][corner],
+        "metal5_perimcap_aF_per_um": m5["perimcap_to_substrate_aF_per_um"][corner],
         "oxide_epsilon_r": stack["oxide"]["epsilon_r"],
         "substrate_epsilon_r": sub["epsilon_r"],
         "substrate_resistivity_ohm_cm": sub["resistivity_ohm_cm"]["value"],
+        "substrate_isosub_sheet_r_ohm_per_sq": sub["isosub_sheet_resistance_ohm_per_sq"]["value"],
     }
 
 
@@ -285,12 +298,95 @@ def build_openems_structure(geometry, stack, f_max_hz, dump_field=False):
 
 
 def fit_electrical_params(geometry, stack, em_result=None):
-    """PDK/model-specific: returns {'l', 'rs', 'cox', 'rsub', 'csub', 'cs'}
-    (SI base units: H, ohm, F) -- same 6 names, same per-half convention, and
-    same em_result=None (fast placeholder path) vs em_result=dict (real-FDTD
-    path, low-frequency Y11 slope fit) split as
-    inductor_spiral_generator.py's own fit_electrical_params() -- see that
-    function's docstring for the full rationale, identical here."""
+    """PDK/model-specific: returns {'l', 'rs', 'cox', 'rsub', 'csub', 'cs',
+    'cox_ct', 'rsub_ct', 'csub_ct', 'rp_eddy', 'lp_eddy'} (SI base units:
+    H, ohm, F) -- the first 6 are the original per-half/per-terminal names
+    (same em_result=None fast-placeholder-path vs em_result=dict
+    real-FDTD-path split as inductor_spiral_generator.py's own
+    fit_electrical_params()); the next 3 are the third substrate tap added
+    at the 'ct' node (2026-09-15 planning session, "double-pi"
+    investigation -- see inductor_loop.sch's own header comment); the last
+    2 are an ordinary (no mutual inductance) eddy-current/skin-proximity
+    loss branch (2026-09-15, same-day follow-up -- see (f) below and
+    pi_model_fit.py's y11_with_eddy_branch()/fit_eddy_branch()
+    docstrings). 2026-09-15 rewrite, replacing several real, previously-
+    latent issues (not just adding new names):
+
+    1. `rsub` used to be `stack["substrate_resistivity_ohm_cm"]` (10.0)
+       assigned DIRECTLY as ohms -- a real unit-mismatch bug (Ω·cm literal
+       used as Ω). Now a real (if approximate) geometry-based spreading-
+       resistance estimate, using `substrate_isosub_sheet_r_ohm_per_sq`
+       (3250 Ω/sq, real GF180MCU value, previously loaded into
+       gf180mcu_stack.json but never consumed anywhere) -- see (a) below.
+       This is now the FALLBACK value (em_result=None) instead of a bare,
+       physically-meaningless literal.
+    2. `rsub`/`csub` used to be either a fixed literal (rsub) or a fixed
+       placeholder constant (csub) UNCONDITIONALLY, even when a real EM
+       Y11 sweep was available -- never actually fit to it. Now, when
+       em_result is given, both are extracted via a physics-informed staged
+       fit (pi_model_fit.fit_rsub_csub_staged(): rs/l/cox/cs held fixed at
+       their own already-trustworthy values, only rsub/csub float, near the
+       data-driven resonance -- matches standard Yue & Wong-style on-chip
+       inductor extraction practice, and is what this project's own
+       tools/gf180mcu_inductor_refit.py already validated as the most
+       defensible of 6 fitting strategies tried). See (d) below.
+    3. `cs` (center-tap bypass cap) is fixed at exactly 0.0 for this
+       topology, dropping `_PLACEHOLDER_CS_F` entirely -- `cs` represents
+       adjacent-turn crossover coupling, which has no physical mechanism for
+       a single-turn rectangular loop (unlike the multi-turn `spiral`
+       topology, which keeps a real placeholder pending its own real
+       formula). See (e) below.
+    4. `cox` is now split 3 ways (1/4, 1/4, 1/2) instead of 2 ways (1/2,
+       1/2) -- trapezoidal area weighting once a third tap exists at 'ct'
+       (each outer terminal 'owns' half a winding-half's worth of trace
+       area, the 'ct' node owns both adjoining halves' near sides). This is
+       a real VALUE CHANGE for `cox` (was cox_total_f/2, now cox_total_f/4)
+       for any already-materialized params.json with real EM-fitted values
+       -- re-materialization needed, not just a docs update. See (b) below.
+    5. NEW: `rp_eddy`/`lp_eddy` model an eddy-current/skin-proximity loss
+       branch -- an ordinary series R+L placed IN PARALLEL with each
+       half's own `l` (no mutual inductance/SPICE `K` element needed; this
+       is the classical T-equivalent-circuit representation of a
+       shorted-secondary transformer, written with plain components) -- a
+       DIFFERENT physical mechanism from the purely electrostatic
+       Cox-Rsub-Csub branch, which has no way to represent it at all.
+       Experimentally confirmed (2026-09-15) to explain a real,
+       previously-unexplained feature in cached EM data: Im(Y11) dipping
+       at resonance then only PARTIALLY recovering (not crossing back
+       through zero) as frequency keeps rising -- full-band RMS relative
+       error against the 100x50um/2um cached run dropped from ~42%
+       (without this branch) to ~1.1% (with it), fit with only 2 new free
+       parameters. A simpler 1-parameter alternative (plain resistor in
+       parallel with `l`, no extra inductor) was tried and empirically
+       rejected -- only reached 34% RMS error, since a plain R∥L branch's
+       high-frequency limit is a constant resistance, not the reduced-
+       but-still-inductive reactance the real data shows. See (f) below.
+
+    IMPORTANT CAVEAT on `cox_ct`/`rsub_ct`/`csub_ct` (see inductor_loop.sch's
+    own header comment and pi_model_fit.assert_ct_tap_unobservable()): this
+    third branch sits exactly on the a<->b mirror-symmetry line, so it is
+    mathematically INVISIBLE to the one-port Y11 measurement this function
+    fits against -- no value of cox_ct/rsub_ct/csub_ct can move Y11 at all.
+    They are therefore NEVER EM-fit (there is nothing in the data that could
+    constrain them) -- `cox_ct` is a real geometry-based estimate (same
+    quality as `cox`), `rsub_ct` a real geometry-based spreading-resistance
+    estimate (same formula family as `rsub`, see (a)), and `csub_ct` is
+    propagated from whatever `csub` the staged fit (or placeholder) already
+    produced, scaled by the same 2x area ratio as `cox_ct`/`rsub`. Their only
+    purpose is physical fidelity for the real VCO tank's substrate-noise-
+    coupling path (there, 'ct' and 'sub' are NOT floating: ct->vdd,
+    sub->SUB, see sch/vco/half_qvco_cell.sch) -- they do not, and cannot,
+    improve this generator's own EM curve fit (that invariance is specific
+    to 'sub' ALSO floating, exactly this function's own em_result
+    convention). tb/inductor/tb_yparam.sch's one-port ngspice test grounds
+    'sub' directly instead (see its own header comment) while leaving 'ct'
+    floating -- a DIFFERENT boundary condition where the new branch is NOT
+    invisible: confirmed via a real ngspice run (sim/_pi_ct_manual_check/),
+    Y11 shifts by a small, physically-expected amount there (negligible at
+    low frequency, growing to a few percent of the low-frequency |Y11|
+    scale by 20GHz for a 100x50um/2um test geometry) -- expect tb_yparam's
+    own Q/SRF numbers to shift slightly after this change, not stay bit-
+    identical."""
     width_um = geometry["width_um"]
     height_um = geometry["height_um"]
     track_width_um = geometry["track_width_um"]
@@ -302,7 +398,39 @@ def fit_electrical_params(geometry, stack, em_result=None):
     # of the real FDTD-extracted result there.
     centerline_len_um = 2 * (width_um - track_width_um - port_gap_um) + 2 * (height_um - track_width_um)
     trace_area_um2 = centerline_len_um * track_width_um
-    cox_total_f = trace_area_um2 * stack["metal5_areacap_aF_per_um2"] * 1e-18
+    # 2026-09-15: added the fringe/edge-field term -- an area-only estimate
+    # underestimates cox for a narrow trace like this (confirmed: for this
+    # topology's own default 40x10um/1um geometry, the fringe term below
+    # comes out several times LARGER than the area term, not a minor
+    # correction). Uses GF180MCU's own real per-perimeter-length coefficient
+    # (metal5_perimcap_aF_per_um, see gf180mcu_stack.json) the same way
+    # magic's own parasitic extractor combines the two terms: C = area*
+    # areacap + perimeter*perimcap (gf180mcuD.tech's own section header
+    # documents this exact formula). `trace_perimeter_um` approximates the
+    # ribbon's perimeter as its two long edges (2x centerline length),
+    # ignoring the small port-end caps and exact corner geometry -- same
+    # "no sharp-corner correction" honesty level `centerline_len_um` itself
+    # already carries.
+    trace_perimeter_um = 2 * centerline_len_um
+    cox_total_f = (trace_area_um2 * stack["metal5_areacap_aF_per_um2"]
+                   + trace_perimeter_um * stack["metal5_perimcap_aF_per_um"]) * 1e-18
+
+    # (a) rsub/rsub_ct: an "ohms-per-square" spreading-resistance analogy --
+    # treat each tap's own footprint (a share of the trace's area, same
+    # weighting as (b)'s cox split below) as a strip of width track_width_um
+    # and length equal to that share of the centerline, through the real
+    # GF180MCU isolation-substrate sheet resistance. This is a deliberately
+    # rough geometric approximation (no literature-cited exact spreading-
+    # resistance formula derived here), same honesty level this module's own
+    # cox estimate already carries -- but it is at least dimensionally
+    # correct and geometry-scaled, unlike the unit-mismatched literal it
+    # replaces. Each OUTER terminal is attributed 1/4 of the trace (matching
+    # cox's own new split, see (b)), so it gets 4x the sheet resistance of a
+    # single full-length square; 'ct' is attributed 1/2 (2x), i.e. half of
+    # rsub_per_terminal.
+    isosub_rsh = stack["substrate_isosub_sheet_r_ohm_per_sq"]
+    rsub_geom = 4 * isosub_rsh * track_width_um / centerline_len_um
+    rsub_ct_geom = 2 * isosub_rsh * track_width_um / centerline_len_um
 
     if em_result is not None:
         import numpy as np
@@ -321,15 +449,66 @@ def fit_electrical_params(geometry, stack, em_result=None):
         # openems_inductor_status.md's 2026-09-15 entry).
         l_half = float(np.mean(np.imag(z11) / w)) / 2
         rs_half = float(np.mean(np.real(z11))) / 2
+
+        # (d) rsub/csub staged fit -- see this function's own docstring
+        # point 2. Seeded from the geometry-based rsub_geom estimate (not an
+        # arbitrary literal) since fit_rsub_csub_staged() can converge with
+        # rsub/csub UNCHANGED from their seed when cox is too small to give
+        # the resonance region any real leverage over them (a real,
+        # confirmed-in-practice non-identifiability regime, not a bug -- see
+        # that function's own docstring).
+        rsub, csub, _opt_result = fit_rsub_csub_staged(
+            freqs, y11, rs=rs_half, l=l_half, cox=cox_total_f / 4, cs=0.0,
+            rsub0=rsub_geom, csub0=_PLACEHOLDER_CSUB_F)
+
+        # (f) eddy-current/skin-proximity loss branch -- see this
+        # function's own docstring point 5 and pi_model_fit.py's
+        # y11_with_eddy_branch()/fit_eddy_branch() docstrings for the full
+        # derivation (an ordinary series R+L branch in PARALLEL with each
+        # half's own `l`, no mutual inductance/SPICE `K` needed -- this is
+        # exactly the classical T-equivalent circuit of a shorted-secondary
+        # transformer, written with plain components). Experimentally
+        # confirmed (2026-09-15 conversation) to explain the post-resonance
+        # Im(Y11) "recovery" the electrostatic Cox-Rsub-Csub branch alone
+        # cannot -- full-band RMS relative error dropped from ~42% to
+        # ~1.1% on the 100x50um/2um cached run once this branch was added,
+        # fit against the SAME rs/l/cox/rsub/csub/cs already established
+        # above (only rp_eddy/lp_eddy float here).
+        rp_eddy, lp_eddy, _opt_result_eddy = fit_eddy_branch(
+            freqs, y11, rs=rs_half, l=l_half, cox=cox_total_f / 4, rsub=rsub, csub=csub, cs=0.0)
     else:
         l_half = _PLACEHOLDER_L_HALF_H
         rs_half = _PLACEHOLDER_RS_HALF_OHM
+        rsub = rsub_geom
+        csub = _PLACEHOLDER_CSUB_F
+        # No real EM data to fit rp_eddy/lp_eddy from at all -- rp_eddy set
+        # huge (effectively an open circuit at any swept frequency) makes
+        # the parallel branch's own lp_eddy value irrelevant (an
+        # open-circuited branch in parallel with `l` can't affect Y11 no
+        # matter what its own inductance is), so this is an honest "no
+        # eddy effect modeled yet" placeholder, not a fabricated guess.
+        rp_eddy = 1e9
+        lp_eddy = l_half
 
     return {
         "l": l_half,
         "rs": rs_half,
-        "cox": cox_total_f / 2,
-        "rsub": stack["substrate_resistivity_ohm_cm"],  # placeholder-quality, see gf180mcu_stack.json
-        "csub": _PLACEHOLDER_CSUB_F,
-        "cs": _PLACEHOLDER_CS_F,
+        # (b) cox 3-way trapezoidal split: each outer terminal 'owns' 1/4 of
+        # the trace's total oxide-coupling area, 'ct' owns the other 1/2
+        # (both adjoining halves' near sides) -- was a straight 1/2-1/2
+        # split before 'ct' had its own tap at all.
+        "cox": cox_total_f / 4,
+        "rsub": rsub,
+        "csub": csub,
+        # (e) no physical adjacent-turn coupling mechanism for a single-turn
+        # loop -- see this function's own docstring point 3.
+        "cs": 0.0,
+        "cox_ct": cox_total_f / 2,
+        "rsub_ct": rsub_ct_geom,
+        # csub_ct is NOT independently EM-fittable (see docstring) --
+        # propagated from the fitted/placeholder outer csub by the same 2x
+        # area ratio as cox_ct/rsub_ct above.
+        "csub_ct": 2 * csub,
+        "rp_eddy": rp_eddy,
+        "lp_eddy": lp_eddy,
     }

@@ -4,26 +4,6 @@ K {}
 V {}
 S {}
 E {}
-* Note (NOT a token, avoid single-quoting bare words here --
-* substitute_params()/check_unresolved() treat ANY quoted-word text as a
-* substitution token, comments included): "loop" topology of the
-* "inductor" block -- a simple rectangular closed-loop GF180MCU Metal5
-* inductor, characterized by a 3D FDTD (openEMS) run, see
-* inductor_loop_generator.py. Deliberately the SAME pi-network circuit
-* model as the "spiral" topology's inductor_spiral.sch (copied verbatim,
-* only this header comment differs) -- see that generator's own module
-* docstring for why: this topology exists to exercise the openEMS
-* materialize/fit/substitute workflow on a much simpler, already-validated
-* geometry (tools/gf180mcu_inductor_diag_loop.py), independent of the
-* spiral's own still-open bugs. Two series half-windings (terminal-a --
-* R2 -- L1 -- ct, ct -- L2 -- R1 -- terminal-b), a center-tap coupling cap
-* from each terminal to ct (C5/C6, named cs), and a substrate-coupling
-* branch from each terminal (Cox in series with a parallel Rsub-and-Csub
-* network to the sub pin) -- C3/R3/C1 on the terminal-a side, C4/R4/C2 on
-* the terminal-b side. substitute_params() tokens: l, rs, cox, rsub, csub,
-* cs, filled in from inductor_loop_generator.py's fit_electrical_params()
-* (real Cox, placeholder-quality l/rs/rsub/csub/cs unless a real openEMS
-* fit has run -- see that function's own docstring).
 N -200 -20 -160 -20 {lab=a}
 N 80 -20 100 -20 {lab=#net1}
 N 160 -20 200 -20 {lab=b}
@@ -42,9 +22,9 @@ N -200 -20 -200 40 {lab=a}
 N -120 180 -120 200 {lab=sub}
 N -120 110 -120 120 {lab=#net3}
 N -200 110 -120 110 {lab=#net3}
-N 120 110 120 120 {lab=#net2}
-N 120 110 200 110 {lab=#net2}
-N 120 180 120 200 {lab=sub}
+N 280 110 280 120 {lab=#net2}
+N 200 110 280 110 {lab=#net2}
+N 280 180 280 200 {lab=sub}
 N -200 -80 -200 -20 {lab=a}
 N -200 -80 -120 -80 {lab=a}
 N -60 -80 -0 -80 {lab=ct}
@@ -53,6 +33,21 @@ N 0 -80 60 -80 {lab=ct}
 N 120 -80 200 -80 {lab=b}
 N 200 -80 200 -20 {lab=b}
 N 0 -120 0 -80 {lab=ct}
+N 0 -20 0 40 {lab=ct}
+N 0 100 0 120 {lab=#net5}
+N 0 110 80 110 {lab=#net5}
+N 80 110 80 120 {lab=#net5}
+N 0 180 0 200 {lab=sub}
+N 80 180 80 200 {lab=sub}
+N 200 200 280 200 {lab=sub}
+N -90 -20 -90 -140 {lab=#net4}
+N -90 -140 -125 -140 {lab=#net4}
+N -15 -20 -15 -140 {lab=ct}
+N -15 -140 -5 -140 {lab=ct}
+N 15 -20 15 -140 {lab=ct}
+N 15 -140 5 -140 {lab=ct}
+N 90 -20 90 -140 {lab=#net1}
+N 90 -140 125 -140 {lab=#net1}
 C {capa-2.sym} -200 150 0 0 {name=C1
 m=1
 value='csub'
@@ -88,7 +83,7 @@ value='rsub'
 footprint=1206
 device=resistor
 m=1}
-C {res.sym} 120 150 2 0 {name=R4
+C {res.sym} 280 150 2 1 {name=R4
 value='rsub'
 footprint=1206
 device=resistor
@@ -117,3 +112,38 @@ m=1
 value='cs'
 footprint=1206
 device=polarized_capacitor}
+C {capa-2.sym} 0 70 0 0 {name=C7
+m=1
+value='cox_ct'
+footprint=1206
+device=polarized_capacitor}
+C {capa-2.sym} 0 150 0 0 {name=C8
+m=1
+value='csub_ct'
+footprint=1206
+device=polarized_capacitor}
+C {res.sym} 80 150 2 1 {name=R5
+value='rsub_ct'
+footprint=1206
+device=resistor
+m=1}
+C {res.sym} -95 -140 1 0 {name=Rp_eddy1
+value='rp_eddy'
+footprint=1206
+device=resistor
+m=1}
+C {ind.sym} -35 -140 1 0 {name=Lp_eddy1
+m=1
+value='lp_eddy'
+footprint=1206
+device=inductor}
+C {res.sym} 35 -140 1 0 {name=Rp_eddy2
+value='rp_eddy'
+footprint=1206
+device=resistor
+m=1}
+C {ind.sym} 95 -140 1 0 {name=Lp_eddy2
+m=1
+value='lp_eddy'
+footprint=1206
+device=inductor}

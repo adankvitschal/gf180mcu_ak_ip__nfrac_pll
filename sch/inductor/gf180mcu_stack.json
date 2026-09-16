@@ -16,6 +16,10 @@
         "areacap_to_substrate_aF_per_um2": {
             "tt": 5.798, "ss": 6.240, "ff": 5.414,
             "source": "libs.tech/magic/gf180mcuD.tech, 'defaultareacap allm5 metal5' (3 corner blocks) -- cross-validated against the d25 stack's physical oxide height via parallel-plate C=eps0*epsr(SiO2=3.9)/height =~ 6.0 aF/um^2, within ~5% of the measured value"
+        },
+        "perimcap_to_substrate_aF_per_um": {
+            "tt": 30.386, "ss": 32.259, "ff": 29.752,
+            "source": "libs.tech/magic/gf180mcuD.tech, 'defaultperimeter allm5 metal5' (3 corner blocks, same tt/max/min block grouping as areacap_to_substrate_aF_per_um2 above, from the same source document PDS_035_03). Fringe/edge-field capacitance per unit trace PERIMETER (not area) -- magic's own parasitic-extraction model sums area*areacap + perimeter*perimcap for a shape's total capacitance to the plane below it (see gf180mcuD.tech's own section header comment, ~line 3470: 'aF/um^2 for area caps and aF/um for perimeter and sidewall caps'). 2026-09-15: added because a narrow trace's fringe term can DOMINATE the area term (confirmed: for a 2um-wide Metal5 loop trace, the fringe contribution came out ~5x the area contribution) -- the area-only cox estimate this project used before this was a real, non-negligible underestimate, not just a minor refinement."
         }
     },
     "metal4": {
