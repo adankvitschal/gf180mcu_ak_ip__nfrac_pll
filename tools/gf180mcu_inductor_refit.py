@@ -3,7 +3,7 @@
 gf180mcu_inductor_refit.py -- re-fits a generator-backed inductor topology's
 pi-model electrical params ('l','rs','cox','rsub','csub','cs') from an
 ALREADY-CACHED openEMS Y11(f) sweep (the JSON run_one_openems()/
-openems_generator_runner.py write, e.g. sim/<variation>/yparam_spiral/
+openems_generator_runner.py write, e.g. sim/<variation>/yparam_em/
 corner-tt_.../result.json or the sibling <test>_0.json), WITHOUT touching
 Docker/CSXCAD/openEMS at all -- fit_electrical_params()'s em_result branch
 is pure numpy (see inductor_spiral_generator.py/inductor_loop_generator.py's
@@ -35,12 +35,12 @@ tool, same spirit as tools/gf180mcu_inductor_diag_*.py.
 HOW TO RUN (no Docker/container needed at all)
 --------------------------------------------------------------------------
   python tools/gf180mcu_inductor_refit.py \\
-      --result-json sim/<variation>/yparam_spiral/corner-tt_.../result.json \\
-      --out sim/<variation>/yparam_spiral/corner-tt_.../fitted.refit.json
+      --result-json sim/<variation>/yparam_em/corner-tt_.../result.json \\
+      --out sim/<variation>/yparam_em/corner-tt_.../fitted.refit.json
 
 Add --flip-sign to test the un-conjugated Y11 hypothesis instead of the
 stored (conjugated) one. Add --plot-base <path prefix> to also regenerate
-the Q/Z/fit-quality PNGs (reusing tb/inductor/tb_yparam_spiral.py's own
+the Q/Z/fit-quality PNGs (reusing tb/inductor/tb_yparam_em.py's own
 plotting functions) against whichever Y11 convention was used, so the two
 hypotheses can be compared side by side without re-running anything.
 --------------------------------------------------------------------------
@@ -73,7 +73,7 @@ from pi_model_fit import (  # noqa: E402  (path setup must come first)
 # here and the generator risked silent drift).
 y11_full_pi_model = y11_two_tap_pi_model
 
-# Same discriminator tb_yparam_spiral.py's own _save_layout_plot() uses --
+# Same discriminator tb_yparam_em.py's own _save_layout_plot() uses --
 # each topology's geometry_from_params() has a distinct, non-overlapping
 # free-parameter key set by construction.
 _GENERATOR_BY_GEOMETRY_KEY = {
@@ -297,7 +297,7 @@ def full_refit(result_json_path, corner="tt", flip_sign=False, max_freq_hz=None,
 
 def _save_full_fit_plot(freqs, y11, fitted_simple, fitted_full, path, max_freq_hz=None):
     """Re(Y11)/Im(Y11) vs frequency (log-x, same reasoning as
-    tb_yparam_spiral.py's own plots -- the interesting behavior sits in the
+    tb_yparam_em.py's own plots -- the interesting behavior sits in the
     lowest ~5% of a typical sweep): raw EM data vs. the simple Rs+jwL-only
     fit (fit_electrical_params()'s current approach, ignores cox/rsub/
     csub/cs entirely) vs. the full 6-parameter joint pi-model fit
@@ -371,7 +371,7 @@ def main():
                          "loop) -- only rsub/csub genuinely float, the two elements a one-port EM measurement "
                          "can plausibly constrain on their own (see full_refit()'s own docstring, 6th attempt)")
     p.add_argument("--plot-base", help="also (re)generate <plot-base>.png/__z.png/__fit.png via "
-                                        "tb_yparam_spiral.py's own plotting functions (or, with --full-fit, "
+                                        "tb_yparam_em.py's own plotting functions (or, with --full-fit, "
                                         "<plot-base>__fullfit.png comparing EM vs. simple vs. full-model fits)")
     args = p.parse_args()
 
@@ -420,7 +420,7 @@ def main():
     elif args.plot_base:
         sys.path.insert(0, str(_TB_INDUCTOR_DIR))
         sys.path.insert(0, str(_TB_SHARED_DIR))
-        tb_yparam_spiral = _load_module(_TB_INDUCTOR_DIR / "tb_yparam_spiral.py")
+        tb_yparam_em = _load_module(_TB_INDUCTOR_DIR / "tb_yparam_em.py")
         re_vals, im_vals = y11.real.tolist(), y11.imag.tolist()
         w = 2 * np.pi * freqs
         q = (-y11.imag / y11.real).tolist()
@@ -428,9 +428,9 @@ def main():
             "freqs": freqs.tolist(), "re": re_vals, "im": im_vals, "q": q,
             "geometry": geometry, "field_png": None, "fitted": fitted,
         }
-        tb_yparam_spiral._save_qf_plot([run], f"{args.plot_base}.png")
-        tb_yparam_spiral._save_z_plot([run], f"{args.plot_base}__z.png")
-        tb_yparam_spiral._save_fit_plot([run], f"{args.plot_base}__fit.png")
+        tb_yparam_em._save_qf_plot([run], f"{args.plot_base}.png")
+        tb_yparam_em._save_z_plot([run], f"{args.plot_base}__z.png")
+        tb_yparam_em._save_fit_plot([run], f"{args.plot_base}__fit.png")
         print(f"\nplots written: {args.plot_base}.png / __z.png / __fit.png")
 
 

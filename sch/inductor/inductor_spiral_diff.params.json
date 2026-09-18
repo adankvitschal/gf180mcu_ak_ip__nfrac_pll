@@ -1,0 +1,105 @@
+{
+    "_generated_by": "manual (spiral_diff topology -- geometric free params + generator-derived electrical params)",
+    "parameters": {
+        "n_turns": {
+            "description": "Number of turns PER ARM (each arm spirals inward from 'ct' to its own far terminus P1/P2) -- must be a positive multiple of 0.5 (each half-turn is one constant-radius 180-degree arc between two radius-step crossings, see inductor_spiral_diff_generator.py's diff_spiral_arms())",
+            "unit": "turns",
+            "default": "2.0",
+            "min": "0.5",
+            "max": "6.0",
+            "grid": "0.5"
+        },
+        "spacing_um": {
+            "description": "Edge-to-edge spacing between adjacent rings of the SAME arm",
+            "unit": "um",
+            "default": "6",
+            "min": "2",
+            "max": "20",
+            "grid": "0.5"
+        },
+        "track_width_um": {
+            "description": "Metal5 winding trace width (also used for the Metal4 port risers/undercuts and via4 sizing)",
+            "unit": "um",
+            "default": "3",
+            "min": "1",
+            "max": "10",
+            "grid": "0.5"
+        },
+        "inner_diameter_um": {
+            "description": "Diameter of the open circle at the center of the winding (both arms' innermost ring stays outside this)",
+            "unit": "um",
+            "default": "100",
+            "min": "40",
+            "max": "200",
+            "grid": "5"
+        },
+        "tab_length_um": {
+            "description": "Extra clearance between the outermost ring and the pad row baseline (added on top of the port routing's own natural clearance)",
+            "unit": "um",
+            "default": "15",
+            "min": "5",
+            "max": "40",
+            "grid": "1"
+        },
+        "port_spacing_um": {
+            "description": "Half-spacing of the 3 pads (P1/P2/ct) from x=0 in the shared bottom pad row -- also the physical span the open/short-circuit-test port bridges in inductor_spiral_diff_generator.py's build_openems_structure()",
+            "unit": "um",
+            "default": "15",
+            "min": "8",
+            "max": "40",
+            "grid": "1"
+        }
+    },
+    "derived_parameters": {
+        "generator": {
+            "l": {
+                "unit": "H",
+                "description": "Self-inductance of each arm (ct to its own far terminus) -- fitted from a real 3-run open/short-circuit-test EM characterization when available (see tools/gf180mcu_spiral_diff_mutual_fit.py, NOT this topology's own generator's fit_electrical_params(), which only ever sees ONE run at a time -- see that function's own docstring), otherwise a generic placeholder literal. Substituted into BOTH L1 (arm A) and L2 (arm B) -- the mirror-construction winding makes La/Lb very close by design, any small measured difference is averaged rather than modeled as an asymmetry."
+            },
+            "rs": {
+                "unit": "ohm",
+                "description": "Series winding resistance of each arm, same fit/placeholder split and same L1/L2-shared-value convention as 'l'."
+            },
+            "cox": {
+                "unit": "F",
+                "description": "Oxide/substrate coupling capacitance at each OUTER terminal (P1, P2) -- real geometry x GF180MCU Metal5 area AND perimeter (fringe) capacitance data, always computed for real (no FDTD needed), summed over BOTH arms' own trace lengths. 1/4 of the total (trapezoidal 3-tap split: each outer terminal 1/4, 'ct' 1/2 -- see 'cox_ct')."
+            },
+            "rsub": {
+                "unit": "ohm",
+                "description": "Substrate spreading-loss resistance completing each outer terminal's oxide-coupling path -- real geometry-based estimate (GF180MCU isolation-substrate sheet resistance x trace area share) as a fallback; not independently EM-fittable by this topology's own generator's fit_electrical_params() (a single open/short-circuit-test run's Y11 doesn't correspond to the a<->b one-port measurement the staged rsub/csub fit assumes -- see that function's own docstring), so this stays at its geometry-based estimate until a dedicated fit against the 3-run data is developed."
+            },
+            "csub": {
+                "unit": "F",
+                "description": "Substrate capacitance in parallel with rsub at each outer terminal -- placeholder-quality fallback, same not-yet-EM-fittable-by-this-topology caveat as 'rsub'."
+            },
+            "cs": {
+                "unit": "F",
+                "description": "Coupling capacitance from each terminal to the center tap (ct) -- placeholder-quality constant, same convention as the 'spiral' topology (adjacent-turn crossover coupling is physically real for this multi-turn octagonal winding, unlike 'loop')."
+            },
+            "cox_ct": {
+                "unit": "F",
+                "description": "Oxide/substrate coupling capacitance at the center tap (ct) -- real geometry-based estimate, same quality as 'cox' (1/2 of the total, vs 1/4 at each outer terminal)."
+            },
+            "rsub_ct": {
+                "unit": "ohm",
+                "description": "Substrate spreading-loss resistance at the center tap -- real geometry-based estimate, same formula family as 'rsub' (half the value, matching cox_ct's double area share)."
+            },
+            "csub_ct": {
+                "unit": "F",
+                "description": "Substrate capacitance at the center tap -- propagated from 'csub' by the same 2x area ratio as cox_ct/rsub_ct, same as 'loop'/'spiral'. NOT independently observable from any of the 3 open/short-circuit-test runs (none of them drive 'sub' or float it the way the a<->b one-port measurement does), so this is purely a geometric propagation, never EM-fit."
+            },
+            "rp_eddy": {
+                "unit": "ohm",
+                "description": "Resistance of the eddy-current/skin-proximity loss branch (Rp_eddy1/Rp_eddy2, in series with lp_eddy, in PARALLEL with each arm's own L1/L2) -- same ordinary (no mutual inductance) T-equivalent representation as 'loop'/'spiral' use for this SEPARATE physical mechanism (electrostatic Cox/Rsub/Csub is a different one). Set to a huge value (1e9 ohm) until a real EM fit against this topology's own 3-run data exists."
+            },
+            "lp_eddy": {
+                "unit": "H",
+                "description": "Inductance of the eddy-current/skin-proximity loss branch -- see 'rp_eddy'. Irrelevant while rp_eddy is huge (placeholder path)."
+            },
+            "k_coupling": {
+                "unit": "dimensionless",
+                "description": "SPICE K mutual-coupling coefficient between L1 (arm A) and L2 (arm B) -- NEW for this topology (see inductor_spiral_diff.sch's own header comment): unlike 'loop'/'spiral', whose single continuous winding has no second, magnetically distinct arm, 'spiral_diff' is a genuine Y-branch of two separately-wound arms sharing node 'ct', so real magnetic coupling between them is physically meaningful. Fixed at 0.0 (no coupling assumed) until a real 3-run open/short-circuit-test EM characterization (tools/gf180mcu_spiral_diff_mutual_fit.py, via pi_model_fit.fit_mutual_inductance()) produces a measured k=m/sqrt(la*lb)."
+            }
+        }
+    }
+}
