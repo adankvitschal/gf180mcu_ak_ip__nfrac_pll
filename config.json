@@ -68,6 +68,16 @@
                     "generator": "sch/inductor/inductor_loop_generator.py",
                     "schematic": "inductor/inductor_loop.sch",
                     "parameters_file": "sch/inductor/inductor_loop.params.json"
+                },
+                "spiral_diff": {
+                    "description": "Octagonal, center-tapped, DIFFERENTIAL GF180MCU spiral inductor -- a genuine Y-branch of two mirror-image wound arms sharing node 'ct' (unlike 'spiral'/'loop', each a single continuous 2-terminal winding with no second magnetically-distinct arm). Layout/geometry done and approved; characterized by 3 SEPARATE single-port FDTD (openEMS) runs (an 'open/short-circuit transformer test': arm A alone, arm B alone, full structure with arm B's far end shorted to ct) rather than one run -- a direct single-port measurement bridging the two arms' far-terminus pads directly was found methodologically invalid for this topology (adds an artificial short-cut path instead of measuring the real ct-mediated winding, and can never reveal mutual coupling since an open secondary carries no current by definition). See inductor_spiral_diff_generator.py's own module docstring for the full derivation, pi_model_fit.py's fit_mutual_inductance()/assert_mutual_inductance_recovers_synthetic() for the combining math (validated against synthetic data), and tools/gf180mcu_spiral_diff_mutual_fit.py for the offline 3-run combiner. The .sch template extends inductor_loop.sch's pi-network with one new element: a SPICE K mutual-coupling statement between L1/L2, driven by a new 'k_coupling' derived parameter -- physically meaningful here (unlike 'loop'/'spiral') because the two arms really are separate windings. build_openems_structure() REQUIRES geometry['variant'] in {'arm_a','arm_b','shorted'} (raises otherwise) -- there is no automatic single-run real-FDTD path for this topology through the normal materialize flow; a real characterization is always the 3-run offline combiner. See spiral_diff_bringup_status.md project memory for the full bring-up trail.",
+                    "references": [
+                        "sch/inductor/inductor_spiral_diff_generator.py -- this repo's own generator (geometry_from_params/build_openems_structure/fit_electrical_params, same contract as inductor_loop_generator.py, but build_openems_structure() takes a required geometry['variant'])",
+                        "tools/gf180mcu_spiral_diff_mutual_fit.py -- offline 3-run combiner (cache-only, no Docker/CSXCAD needed), same spirit as tools/gf180mcu_inductor_refit.py"
+                    ],
+                    "generator": "sch/inductor/inductor_spiral_diff_generator.py",
+                    "schematic": "inductor/inductor_spiral_diff.sch",
+                    "parameters_file": "sch/inductor/inductor_spiral_diff.params.json"
                 }
             }
         },
@@ -169,10 +179,10 @@
                     "typical": {"corner": "tt", "temperature": "25"}
                 }
             },
-            "yparam_spiral": {
+            "yparam_em": {
                 "simulator": "openems",
-                "testbench": "tb/inductor/tb_yparam_spiral_dummy.sch",
-                "parser": "tb/inductor/tb_yparam_spiral.py",
+                "testbench": "tb/inductor/tb_yparam_em_dummy.sch",
+                "parser": "tb/inductor/tb_yparam_em.py",
                 "outputs": [
                     {"description": "Self-resonant frequency (SRF), EM-extracted", "unit": "GHz"},
                     {"description": "Peak Q factor across the FDTD frequency sweep", "unit": ""}

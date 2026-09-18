@@ -199,13 +199,23 @@ def fit_eddy_branch(freqs, y11, rs, l, cox, rsub, csub, cs,
     freqs_fit, y11_fit = freqs[fit_mask], y11[fit_mask]
 
     f_res = find_resonance_hz(freqs, y11)
+    # abs(l): l is a physical inductance and should never legitimately be
+    # negative, but a real 2026-09-16 crash (see openems_inductor_status.md)
+    # showed it CAN arrive negative when an upstream Y11 sign-convention bug
+    # (now fixed in openems_generator_runner.py) feeds a bad em_result in --
+    # `hi = 2*l` then went negative while `lo` stayed positive, and scipy's
+    # least_squares raised ValueError("Each lower bound must be strictly
+    # less than each upper bound") instead of a clear diagnostic. Guarding
+    # here (not just relying on the upstream fix) means a caller passing a
+    # bad `l` fails at most with a poor fit, never a hard crash.
+    l_abs = abs(l)
     if rp_eddy0 is None:
-        rp_eddy0 = l * 2 * np.pi * f_res
+        rp_eddy0 = l_abs * 2 * np.pi * f_res
     if lp_eddy0 is None:
-        lp_eddy0 = 0.5 * l
+        lp_eddy0 = 0.5 * l_abs
 
     lo = np.array([1e-6, 0.0])
-    hi = np.array([1e6, 2 * l])
+    hi = np.array([1e6, max(2 * l_abs, 2 * lo[1] * 1.001, 1e-15)])
     x0 = np.clip(np.array([rp_eddy0, lp_eddy0]), lo * 1.001, hi * 0.999)
 
     def residuals(x):
@@ -265,6 +275,143 @@ def assert_ct_tap_unobservable(n_trials=5, seed=0):
             )
 
 
+def fit_arm_self_impedance(freqs, y11, n_fit=None):
+    """Low-frequency Rs+jwL slope fit of a single continuous 2-terminal
+    winding's own Y11 -- same low-frequency-window convention as
+    fit_electrical_params()'s l_half/rs_half (n_fit=max(3, len//20) lowest
+    points), but WITHOUT the /2: this is meant for inductor_spiral_diff_
+    generator.py's "arm alone" measurement (one whole arm, ct-pad to its own
+    far-terminus pad, no other conductor in the structure -- see that
+    module's own docstring), which really is one continuous 2-terminal
+    winding end to end, same methodology as inductor_loop_generator.py's own
+    single-loop fit (loop_/spiral_ 's 'l'/'rs' ARE halved because their
+    single measurement spans two series L/R pairs in the .sch template; an
+    arm-alone measurement here spans exactly ONE of those, so no halving).
+
+    Returns (rs, l)."""
+    if n_fit is None:
+        n_fit = max(3, len(freqs) // 20)
+    w = 2 * np.pi * freqs[:n_fit]
+    z = 1.0 / y11[:n_fit]
+    l = float(np.mean(np.imag(z) / w))
+    rs = float(np.mean(np.real(z)))
+    return rs, l
+
+
+def fit_mutual_inductance(freqs_a, y11_a, freqs_b, y11_b, freqs_sc, y11_sc, n_fit=None):
+    """Combines THREE single-port EM runs of a center-tapped differential
+    inductor's two arms into (ra, la, rb, lb, m, k) -- the open/short-
+    circuit transformer test method (see inductor_spiral_diff_generator.py's
+    own module docstring for the full physical justification: a direct
+    single-port measurement bridging the two arms' far-terminus pads
+    directly is invalid for this Y-shaped 3-terminal network, since it adds
+    an artificial short-cut path instead of measuring the real ct-mediated
+    winding, AND can never reveal mutual coupling since an open secondary
+    carries no current by definition):
+
+    - 'arm_a' run: arm A alone (arm B genuinely absent from the geometry),
+      port bridging arm A's own two ends (ct-pad, P1-pad) -> fit_arm_self_
+      impedance() gives (ra, la), arm A's own end-to-end self-impedance.
+    - 'arm_b' run: mirror -> (rb, lb).
+    - 'shorted' run: FULL structure (both arms present), arm B's far end
+      (P2) shorted to ct via an added jumper trace, port bridging (P1-pad,
+      ct-pad) -- same port placement as the 'arm_a' run. Mesh analysis of
+      this network (arm B + the shorting jumper form a closed loop with no
+      independent drive, purely mutually coupled to arm A) gives:
+          Za_sc(w) = (ra + jw*la) + w^2*m^2 / (rb + jw*lb)
+      the classical short-circuit-secondary transformer result (reduces to
+      the textbook jw*la*(1-k^2) approximation when ra,rb->0). Solved here
+      for m^2 directly, per swept frequency point in the low-frequency
+      window:
+          m^2(w) = (Za_sc(w) - ra - jw*la) * (rb + jw*lb) / w^2
+      which should be roughly frequency-independent if this model actually
+      holds -- the spread across the fit window (see 'm2_values' in the
+      returned dict) is itself a check on model validity, not hidden away.
+
+    All three runs must share the same frequency sweep (freqs_a/freqs_b/
+    freqs_sc are asserted equal, not just same length -- a mismatched sweep
+    would silently misalign per-point m^2(w) below).
+
+    Returns a dict: ra, la, rb, lb (each run's own self-impedance fit),
+    m (sqrt of the low-frequency-window mean of Re(m^2) -- NOT abs()'d: a
+    negative mean Re(m^2) means the 3-run model didn't hold for this data
+    and is surfaced as a ValueError, not silently papered over), k (=
+    m/sqrt(la*lb), NOT clamped to [0,1] -- a caller should treat k outside
+    that range as a sign something upstream is wrong, same "surface it,
+    don't hide it" spirit as this module's other fit functions), and
+    'm2_values' (the raw per-frequency-point complex m^2(w) array actually
+    averaged, for inspecting how much it varies)."""
+    freqs_a = np.asarray(freqs_a)
+    freqs_b = np.asarray(freqs_b)
+    freqs_sc = np.asarray(freqs_sc)
+    if not (np.allclose(freqs_a, freqs_b) and np.allclose(freqs_a, freqs_sc)):
+        raise ValueError("fit_mutual_inductance(): the 3 runs must share the same frequency sweep")
+
+    if n_fit is None:
+        n_fit = max(3, len(freqs_a) // 20)
+
+    ra, la = fit_arm_self_impedance(freqs_a, y11_a, n_fit=n_fit)
+    rb, lb = fit_arm_self_impedance(freqs_b, y11_b, n_fit=n_fit)
+
+    w = 2 * np.pi * freqs_sc[:n_fit]
+    z_sc = 1.0 / np.asarray(y11_sc)[:n_fit]
+    m2_values = (z_sc - ra - 1j * w * la) * (rb + 1j * w * lb) / w ** 2
+
+    m2_mean_re = float(np.mean(m2_values.real))
+    if m2_mean_re < 0:
+        raise ValueError(
+            f"fit_mutual_inductance(): mean Re(m^2)={m2_mean_re:.3g} is negative -- the "
+            f"open/short-circuit-test model didn't hold for this data (ra={ra:.4g}, la={la:.4g}, "
+            f"rb={rb:.4g}, lb={lb:.4g}); check the 'shorted' run's own jumper/port geometry before "
+            f"trusting any of this rather than taking abs() or sqrt() of a negative number")
+    m = float(np.sqrt(m2_mean_re))
+    k = m / np.sqrt(la * lb)
+
+    return {"ra": ra, "la": la, "rb": rb, "lb": lb, "m": m, "k": k, "m2_values": m2_values}
+
+
+def assert_mutual_inductance_recovers_synthetic(n_trials=5, seed=0):
+    """Regression check for fit_mutual_inductance()'s own derivation: builds
+    a synthetic (ra, la, rb, lb, m) coupled-arm pair, computes the EXACT
+    idealized Y11(f) each of the 3 real EM runs would produce if the FDTD
+    structure behaved exactly like the lumped model (Y11_arm_a=1/(ra+jwla),
+    Y11_arm_b=1/(rb+jwlb), Y11_shorted=1/((ra+jwla)+w^2*m^2/(rb+jwlb))), then
+    confirms fit_mutual_inductance() recovers (ra, la, rb, lb, m) back out to
+    near machine precision -- proves the fitting math itself is correct
+    BEFORE it's ever pointed at a real (expensive, hours-long) FDTD run,
+    same spirit as assert_ct_tap_unobservable() above."""
+    rng = np.random.default_rng(seed)
+    freqs = np.linspace(1e6, 20e9, 201)
+    w = 2 * np.pi * freqs
+    for _ in range(n_trials):
+        ra = rng.uniform(0.5, 5.0)
+        la = rng.uniform(1e-9, 5e-9)
+        rb = rng.uniform(0.5, 5.0)
+        lb = rng.uniform(1e-9, 5e-9)
+        k_true = rng.uniform(0.05, 0.6)
+        m = k_true * np.sqrt(la * lb)
+
+        y11_a = 1.0 / (ra + 1j * w * la)
+        y11_b = 1.0 / (rb + 1j * w * lb)
+        z_sc = (ra + 1j * w * la) + (w ** 2) * (m ** 2) / (rb + 1j * w * lb)
+        y11_sc = 1.0 / z_sc
+
+        fitted = fit_mutual_inductance(freqs, y11_a, freqs, y11_b, freqs, y11_sc)
+
+        for name, expected, got in (
+            ("ra", ra, fitted["ra"]), ("la", la, fitted["la"]),
+            ("rb", rb, fitted["rb"]), ("lb", lb, fitted["lb"]),
+            ("m", m, fitted["m"]), ("k", k_true, fitted["k"]),
+        ):
+            if not np.isclose(expected, got, rtol=1e-6, atol=1e-15):
+                raise AssertionError(
+                    f"fit_mutual_inductance() failed to recover synthetic {name}: "
+                    f"expected {expected!r}, got {got!r} (ra={ra},la={la},rb={rb},lb={lb},m={m})")
+
+
 if __name__ == "__main__":
     assert_ct_tap_unobservable()
     print("assert_ct_tap_unobservable(): OK -- a third ct<->sub branch is confirmed invisible to Y11")
+    assert_mutual_inductance_recovers_synthetic()
+    print("assert_mutual_inductance_recovers_synthetic(): OK -- the 3-run open/short-circuit fit "
+          "recovers synthetic ra/la/rb/lb/m/k to near machine precision")
