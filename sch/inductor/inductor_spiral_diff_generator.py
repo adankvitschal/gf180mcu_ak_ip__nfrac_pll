@@ -170,6 +170,22 @@ _PLACEHOLDER_CSUB_F = 103.1e-15
 _TRANSITION_MID_FRAC = 0.30
 _TRANSITION_END_FRAC = 0.35
 
+# 2026-09-21: z-domain of the FDTD box (root cause of the long-standing divergence, see
+# spiral_diff_bringup_status.md). The old z stack (substrate 12.9um, ~4.8um of air above Metal5,
+# uniform fine z cells) made the z-PMLs sit ~3um from the metal and let waves guided in the thin
+# substrate slab graze them; energy then grew exponentially, faster the wider the lateral domain
+# (an identical plain Metal4 loop diverged with that stack and converged, -41 dB, with the one
+# below). SUBSTRATE/AIR are TOTAL extents INCLUDING the z-PML (8 cells of ~Z_FAR_RES_UM each, i.e.
+# ~30um per side). z cells are fine only within Z_NEAR_BAND_UM of the metal stack, then graded
+# (ratio 1.4) up to Z_FAR_RES_UM -- fine because the wavelength in Si at 20 GHz is ~4 mm.
+Z_SUBSTRATE_MIN_UM = 200.0
+Z_AIR_MIN_UM = 160.0
+Z_NEAR_BAND_UM = 6.0
+Z_FAR_RES_UM = 4.0
+# The local 5x xy refinement at the riser/ribbon jogs was a workaround that only DELAYED the
+# divergence (the jogs were never the cause); off by default, kept for reference.
+JOG_MESH_REFINE = False
+
 FIELD_DUMP_NAME = "field_dump"  # fixed name openems_generator_runner.py looks for
 FIELD_DUMP_NAMES = {
     "metal5": FIELD_DUMP_NAME,
@@ -756,13 +772,22 @@ def build_openems_structure(geometry, stack, f_max_hz, dump_field=False):
     # has no non-lumped ideal-wire primitive to make it exactly zero.
     bridge_width_um = 6 * track_width_um
     bridge_half_w = bridge_width_um / 2
-    if x_right - x_left <= port_gap:
+    if x_right - x_left <= port_gap + 2 * half_w:
         raise ValueError(
             f"port pads are only {x_right - x_left:.3f}um apart, not enough room for a "
-            f"{port_gap:.3f}um port gap plus any bridge -- increase port_spacing_um")
-    bridge_x0, bridge_x1 = x_left, x_right - port_gap
-    port_p0 = (bridge_x1, p_y_mid - half_w)
-    port_p1 = (x_right, p_y_mid + half_w)
+            f"{port_gap:.3f}um port gap plus the two {2 * half_w:.3f}um-wide port terminals -- "
+            f"increase port_spacing_um")
+    # 2026-09-21 FIX of a real short across the port: bridge_x1 used to be x_right - port_gap, and
+    # the Metal4 bridge box ends at bridge_x1 + half_w (x_right - port_gap + half_w), while the
+    # Metal4 riser of the far pad starts at x_right - half_w. With port_gap (2.25um) < 2*half_w (3um)
+    # those two boxes OVERLAPPED under the port, so Metal4 was continuous below the (Metal5) port gap
+    # and the port saw a ~0.04 ohm / 0.5 pH short instead of the winding (found by computing Z from
+    # port_ut/port_it of the first converged run). Now the bridge's Metal4 ends exactly at the port's
+    # left edge and the far riser's Metal4 starts exactly at the port's right edge, leaving the whole
+    # port gap free of metal underneath; each terminal is a via4 + Metal5 cap (2*half_w square).
+    bridge_x0, bridge_x1 = x_left, x_right - port_gap - 2 * half_w
+    port_p0 = (bridge_x1 + half_w, p_y_mid - half_w)
+    port_p1 = (x_right - half_w, p_y_mid + half_w)
 
     # 2026-09-18 SECOND fix, found after the bridge-width fix ABOVE still
     # diverged (confirmed via a real run, energy blew up again -- and via a
@@ -869,8 +894,11 @@ def build_openems_structure(geometry, stack, f_max_hz, dump_field=False):
     # that happen to fall within res_xy of each other survive un-merged
     # too, needlessly finening the mesh well beyond the jog points this is
     # actually targeting.
-    xs_combined = _merge_close_lines(anchor_xs, res_xy) + _merge_close_lines(jog_fine_xs, fine_step * 0.9)
-    ys_combined = _merge_close_lines(anchor_ys, res_xy) + _merge_close_lines(jog_fine_ys, fine_step * 0.9)
+    xs_combined = _merge_close_lines(anchor_xs, res_xy)
+    ys_combined = _merge_close_lines(anchor_ys, res_xy)
+    if JOG_MESH_REFINE:
+        xs_combined += _merge_close_lines(jog_fine_xs, fine_step * 0.9)
+        ys_combined += _merge_close_lines(jog_fine_ys, fine_step * 0.9)
     # Final cleanup pass at a small (not res_xy-scale) threshold -- the two
     # merges above ran independently, so a coarse anchor could land just a
     # hair away from an unrelated fine anchor, producing an unintended
@@ -908,12 +936,15 @@ def build_openems_structure(geometry, stack, f_max_hz, dump_field=False):
     mesh.SmoothMeshLines("x", res_xy, ratio=1.4)
     mesh.SmoothMeshLines("y", res_xy, ratio=1.4)
 
-    sub_thick = 6 * (z_m5_top - z_ox_top) + z_ox_top
-    mesh.AddLine("z", [-sub_thick, 0, m4_z0, m4_z1, z_ox_top, z_m5_top])
+    # z domain: see the Z_* constants' comment -- thick substrate + tall air (both scaled up for a
+    # big coil so the z-PMLs stay >~1 coil diameter away), z mesh fine near the metal only.
+    sub_thick = max(Z_SUBSTRATE_MIN_UM, 2 * r_outer + 80.0)
+    air_above = max(Z_AIR_MIN_UM, 2 * r_outer + 80.0)
+    mesh.AddLine("z", [-min(sub_thick, Z_NEAR_BAND_UM), 0, m4_z0, m4_z1, z_ox_top, z_m5_top,
+                       z_m5_top + min(air_above, Z_NEAR_BAND_UM)])
     mesh.SmoothMeshLines("z", stack["metal5_thickness_m"] / unit / 2, ratio=1.4)
-    air_above = 4 * (z_m5_top - z_ox_top)
-    mesh.AddLine("z", [z_m5_top + air_above])
-    mesh.SmoothMeshLines("z", res_xy, ratio=1.4)
+    mesh.AddLine("z", [-sub_thick, z_m5_top + air_above])
+    mesh.SmoothMeshLines("z", Z_FAR_RES_UM, ratio=1.4)
 
     substrate = CSX.AddMaterial("substrate", epsilon=stack["substrate_epsilon_r"], kappa=substrate_sigma)
     substrate.AddBox([-box, -box_y, -sub_thick], [box, box, 0])
@@ -1020,11 +1051,13 @@ def build_openems_structure(geometry, stack, f_max_hz, dump_field=False):
     # extra_via4_points: the 2 taps (bridge's own far end, far pad's own
     # riser) that bring the LumpedPort's own 2 terminals up onto Metal5 --
     # see this function's own "2026-09-18 SECOND fix" comment above for why.
-    # NOT put through the same enclosure fix above: these transition into
-    # the LumpedPort's own measurement-only territory, not a real drawn
-    # Metal5 shape a DRC deck would ever check.
+    # 2026-09-21: each tap now has a Metal5 cap (2*half_w square) over it -- before, the port's two
+    # terminals were the bare tops of the via4s with no Metal5 above them -- and the via4 is inset
+    # by the same 50nm enclosure as the jog vias.
     for xy in extra_via4_points:
-        via4.AddBox([xy[0] - half_w, xy[1] - half_w, m4_z1], [xy[0] + half_w, xy[1] + half_w, z_ox_top], priority=5)
+        via4.AddBox([xy[0] - half_w + _VIA4_ENCLOSURE_UM, xy[1] - half_w + _VIA4_ENCLOSURE_UM, m4_z1],
+                    [xy[0] + half_w - _VIA4_ENCLOSURE_UM, xy[1] + half_w - _VIA4_ENCLOSURE_UM, z_ox_top], priority=5)
+        metal5.AddBox([xy[0] - half_w, xy[1] - half_w, z_ox_top], [xy[0] + half_w, xy[1] + half_w, z_m5_top])
 
     port_a = FDTD.AddLumpedPort(
         1, 50, [port_p0[0], port_p0[1], port_z0], [port_p1[0], port_p1[1], port_z1], "x", excite=excite_v_per_m)
