@@ -186,6 +186,16 @@ Z_FAR_RES_UM = 4.0
 # divergence (the jogs were never the cause); off by default, kept for reference.
 JOG_MESH_REFINE = False
 
+# 2026-09-21 (user decision): the port fixture is a U-shaped METAL4 extension of the two bridged terminals
+# (the real signals reach the device from the lower metals), with the LumpedPort in-line in the middle of the
+# U's straight base -- no via4, no Metal5, no wide bridge overlapping the risers. The legs go PORT_U_LEG_UM
+# below the pad row; the U's own trace width, and the P1/P2/ct risers' own width, both come from the
+# geometry's own 'port_track_width_um' free parameter (see geometry_from_params()) -- NOT track_width_um --
+# 2026-09-22 (user decision): Metal4 is 2.25x more resistive per square than Metal5 (this stack's own tt sheet
+# R, checked directly), and widening these traces costs nothing in r_outer/domain size (unlike widening the
+# winding's own track_width_um), so they get their own, independently tunable width.
+PORT_U_LEG_UM = 10.0
+
 FIELD_DUMP_NAME = "field_dump"  # fixed name openems_generator_runner.py looks for
 FIELD_DUMP_NAMES = {
     "metal5": FIELD_DUMP_NAME,
@@ -222,7 +232,7 @@ def load_stack(corner="tt", path=_STACK_PATH):
 
 
 def geometry_from_params(params):
-    """Extracts/type-casts this topology's 6 free geometric parameters --
+    """Extracts/type-casts this topology's 7 free geometric parameters --
     the ONLY place that knows this topology's own free parameter names.
     Fails fast if n_turns isn't a whole number of half-turns (each
     half-turn is one constant-radius 180-degree arc, see
@@ -241,6 +251,11 @@ def geometry_from_params(params):
         "inner_diameter_um": float(params["inner_diameter_um"]),
         "tab_length_um": float(params["tab_length_um"]),
         "port_spacing_um": float(params["port_spacing_um"]),
+        # 2026-09-22 (user decision): independent width for the port fixture's own Metal4 traces (P1/P2/ct
+        # risers + the U -- see build_openems_structure()'s own PORT_U_LEG_UM comment) -- Metal4 is 2.25x
+        # more resistive per square than Metal5 here, and widening these traces is nearly free (doesn't grow
+        # r_outer/the domain, only local pad-row geometry), unlike widening track_width_um itself.
+        "port_track_width_um": float(params["port_track_width_um"]),
     }
 
 
@@ -565,6 +580,15 @@ def save_layout_preview(geometry, path, variant=None):
         arms_ext.append((ports["full_a"] + [ports["p1_jog_xy"]], ports["edge_layers_a"] + ["metal5"]))
     if variant is None or variant in ("arm_b", "shorted"):
         arms_ext.append((ports["full_b"] + [ports["p2_jog_xy"]], ports["edge_layers_b"] + ["metal5"]))
+    # 2026-09-22: the OTHER arm (variant "arm_a"/"arm_b" only) is present but floating -- see
+    # build_openems_structure()'s own matching comment for why. Drawn muted/gray (not goldenrod/
+    # steelblue, both meaning "real driven device metal" already), no jog stub, no via markers, so
+    # it visually reads as "physically there, not part of this measurement's own driven path".
+    floating_ext = []
+    if variant == "arm_a":
+        floating_ext.append((ports["full_b"], ports["edge_layers_b"]))
+    elif variant == "arm_b":
+        floating_ext.append((ports["full_a"], ports["edge_layers_a"]))
     via4_markers = []
     for full, edge_layers in arms_ext:
         for layer, run_pts in _group_runs(full, edge_layers):
@@ -582,6 +606,11 @@ def save_layout_preview(geometry, path, variant=None):
                 ax.fill(*zip(*(ribbon + [ribbon[0]])), color="steelblue", alpha=0.6, edgecolor="steelblue",
                          linewidth=0.3, zorder=1)
                 via4_markers.extend([run_pts[0], run_pts[-1]])
+    for full, edge_layers in floating_ext:
+        for layer, run_pts in _group_runs(full, edge_layers):
+            ribbon = spiral_ribbon_polygon(run_pts, track_width_um)
+            ax.fill(*zip(*(ribbon + [ribbon[0]])), color="lightgray", alpha=0.7, edgecolor="gray",
+                     linewidth=0.3, zorder=1)
 
     # Port risers: Metal4 for the straight vertical run only (pad up to
     # the jog point) -- the only thing left on Metal4 is a plain
@@ -604,9 +633,15 @@ def save_layout_preview(geometry, path, variant=None):
         # test-only addition it is, not part of the normal 3-terminal
         # device.
         metal4_paths["jumper"] = [ports["p2_pad"], ports["p3_pad"]]
+    port_track_width_um = geometry["port_track_width_um"]
     for label, pts in metal4_paths.items():
+        # Risers (E/P1/P2) drawn at their own real width (port_track_width_um, see build_openems_
+        # structure()'s own comment); the jumper keeps using track_width_um here (a pre-existing
+        # preview simplification -- the real jumper is bridge_width_um=6*track_width_um wide, not
+        # drawn to scale in this thumbnail, unrelated to this change).
         color = "crimson" if label == "jumper" else "steelblue"
-        _draw_axis_aligned_strip(ax, pts, track_width_um, color=color, alpha=0.45,
+        w = track_width_um if label == "jumper" else port_track_width_um
+        _draw_axis_aligned_strip(ax, pts, w, color=color, alpha=0.45,
                                   edgecolor=color, linewidth=0.3, zorder=1)
     _draw_axis_aligned_strip(ax, [ports["ct_jog_xy"], ct_xy], track_width_um, color="goldenrod",
                               edgecolor="darkgoldenrod", linewidth=0.3, zorder=2)
@@ -691,6 +726,11 @@ def build_openems_structure(geometry, stack, f_max_hz, dump_field=False):
     track_width_um = geometry["track_width_um"]
     spacing_um = geometry["spacing_um"]
     half_w = track_width_um / 2
+    # 2026-09-22: the port fixture's own Metal4 traces (risers + U) get their own, independently tunable
+    # width -- see geometry_from_params()'s own comment for why. half_w stays tied to the real winding
+    # width for everything winding-adjacent (ribbon, jog vias/miters).
+    port_track_width_um = geometry["port_track_width_um"]
+    port_half_w = port_track_width_um / 2
 
     ports = route_ports(geometry)
     ct_xy = ports["ct_xy"]
@@ -734,6 +774,25 @@ def build_openems_structure(geometry, stack, f_max_hz, dump_field=False):
         arms_ext.append((ports["full_b"] + [ports["p2_jog_xy"]], ports["edge_layers_b"] + ["metal5"]))
         port_metal4_paths.append([p2_pad, ports["p2_jog_xy"]])
         all_pts += ports["full_b"]
+    # 2026-09-22 (user's methodological point): "arm_a"/"arm_b" used to build the OTHER arm not just
+    # unexcited but genuinely ABSENT from the geometry -- a true open-circuit secondary carries no NET
+    # current (the mutual-EMF term vanishes when I_b=0, same physics either way), but a physically absent
+    # conductor also drops whatever capacitive/proximity loading its mere PRESENCE puts on the excited
+    # arm and on 'ct' -- real at these frequencies/spacings, and not something the "open-circuit" half of
+    # the transformer-test method is supposed to skip. Now the other arm's own ribbon (same real winding
+    # shape/layers, including its own internal metal4 crossunders -- diff_spiral_arms()'s own construction
+    # is variant-agnostic) is always drawn, just with NO jog/riser/pad/port routing: a floating conductor,
+    # not a driven one. (Left OUT of all_pts/mesh anchors on purpose -- it's not a jog/port site needing
+    # fine local refinement, the ribbon's own ordinary mesh_resolution_um-scale anchors from spiral_ribbon_
+    # polygon's own points, drawn below via arms_ext same as every other ribbon, are enough.) Its own
+    # points still go into all_pts as ordinary (non-jog-fine) mesh anchors, same as the driven arm's own
+    # points -- only the jog_points list below (fine 5x refinement) stays limited to real port/riser sites.
+    if variant == "arm_a":
+        arms_ext.append((ports["full_b"], ports["edge_layers_b"]))
+        all_pts += ports["full_b"]
+    elif variant == "arm_b":
+        arms_ext.append((ports["full_a"], ports["edge_layers_a"]))
+        all_pts += ports["full_a"]
     port_metal5_paths = [
         [ports["ct_jog_xy"], ct_xy],
     ]
@@ -770,60 +829,38 @@ def build_openems_structure(geometry, stack, f_max_hz, dump_field=False):
     # zero (a real, small, honestly-not-hidden approximation, same spirit
     # as this project's other geometry-based estimates), but this project
     # has no non-lumped ideal-wire primitive to make it exactly zero.
+    # Test-only P2<->ct jumper ("shorted" variant only) is a wide Metal4 strip: low series resistance matters
+    # there because it IS the short of the shorted-secondary test.
     bridge_width_um = 6 * track_width_um
     bridge_half_w = bridge_width_um / 2
-    if x_right - x_left <= port_gap + 2 * half_w:
+    # 2026-09-21 (user decision) PORT FIXTURE = a U of Metal4 hanging below the pad row: two legs (one under each
+    # bridged terminal, going down PORT_U_LEG_UM) joined by a straight horizontal base, with the LumpedPort in-line in
+    # the middle of that base (Metal4 z-range, same in-line pattern as the plain Metal4 loop that converges). This
+    # replaces the previous wide Metal4 bridge + via4 taps + Metal5 port, whose bridge overlapped the far riser under
+    # the port gap (a ~0.04 ohm short, found from port_ut/port_it of the first converged run) and whose taps were bare
+    # via4 tops. Signals reach the real device from lower metals anyway, so the terminals stay on Metal4.
+    u_w = port_track_width_um
+    u_half = u_w / 2
+    u_yc = p_y_mid - PORT_U_LEG_UM          # y of the base's centre line
+    if x_right - x_left - u_w <= port_gap + 2 * port_half_w:
         raise ValueError(
-            f"port pads are only {x_right - x_left:.3f}um apart, not enough room for a "
-            f"{port_gap:.3f}um port gap plus the two {2 * half_w:.3f}um-wide port terminals -- "
-            f"increase port_spacing_um")
-    # 2026-09-21 FIX of a real short across the port: bridge_x1 used to be x_right - port_gap, and
-    # the Metal4 bridge box ends at bridge_x1 + half_w (x_right - port_gap + half_w), while the
-    # Metal4 riser of the far pad starts at x_right - half_w. With port_gap (2.25um) < 2*half_w (3um)
-    # those two boxes OVERLAPPED under the port, so Metal4 was continuous below the (Metal5) port gap
-    # and the port saw a ~0.04 ohm / 0.5 pH short instead of the winding (found by computing Z from
-    # port_ut/port_it of the first converged run). Now the bridge's Metal4 ends exactly at the port's
-    # left edge and the far riser's Metal4 starts exactly at the port's right edge, leaving the whole
-    # port gap free of metal underneath; each terminal is a via4 + Metal5 cap (2*half_w square).
-    bridge_x0, bridge_x1 = x_left, x_right - port_gap - 2 * half_w
-    port_p0 = (bridge_x1 + half_w, p_y_mid - half_w)
-    port_p1 = (x_right - half_w, p_y_mid + half_w)
-
-    # 2026-09-18 SECOND fix, found after the bridge-width fix ABOVE still
-    # diverged (confirmed via a real run, energy blew up again -- and via a
-    # crossing-free n_turns=0.5 control run, which ALSO diverged, ruling out
-    # the Metal4 undercut/crossing geometry as the cause): the LumpedPort
-    # above was sitting on METAL4 (z=[m4_z0,m4_z1]), i.e. INSIDE the
-    # modeled oxide box's own z-range (oxide spans z=[0,z_ox_top], and
-    # m4_z1 < z_ox_top -- see build_openems_structure()'s own z-stack).
-    # Cross-checked against BOTH already-validated ports in this project
-    # (inductor_loop_generator.py's and inductor_spiral_generator.py's own
-    # build_openems_structure()): both place their LumpedPort at
-    # z=[z_ox_top, z_m5_top] -- METAL5's own range, ABOVE the oxide box
-    # entirely, never touching it -- and inductor_spiral_generator.py's own
-    # code comment explicitly warns why: a port z-range that reaches down
-    # into/through the oxide/substrate region was CONFIRMED (that module's
-    # own prior investigation) to produce a ~30-40 kOhm modeling artifact.
-    # An ordinary Metal4 CONDUCTOR (via priority=5) embedded in oxide is
-    # fine (this project's own crossunders/risers already do that,
-    # everywhere) -- it's specifically the LumpedPort primitive sitting
-    # there that's the problem. Fixed by tapping BOTH the bridge's own far
-    # end (bridge_x1) and the far pad's own riser (x_right) up to Metal5
-    # via a via4 transition each (added to via4_jog_points below), and
-    # moving the port itself onto Metal5 between those two taps -- same x
-    # span as before, just relocated in z. The wide bridge and pad risers
-    # themselves stay on Metal4 (ordinary conductors, not ports -- no
-    # reason to move those).
-    wide_bridge_paths = [(bridge_x0, bridge_x1, p_y_mid)]
-    port_z0, port_z1 = z_ox_top, z_m5_top
-    extra_via4_points = [(bridge_x1, p_y_mid), (x_right, p_y_mid)]
+            f"port pads are only {x_right - x_left:.3f}um apart, not enough room for a {port_gap:.3f}um port gap "
+            f"plus the two {u_w:.3f}um-wide U legs -- increase port_spacing_um or shrink port_track_width_um")
+    x_mid = (x_left + x_right) / 2
+    port_p0 = (x_mid - port_gap / 2, u_yc - u_half)
+    port_p1 = (x_mid + port_gap / 2, u_yc + u_half)
+    port_z0, port_z1 = m4_z0, m4_z1
+    u_boxes = [  # (x0, y0, x1, y1) Metal4 rectangles; touching/overlapping corners are the same net on purpose
+        (x_left - u_half, u_yc - u_half, x_left + u_half, p_y_mid),      # left leg
+        (x_right - u_half, u_yc - u_half, x_right + u_half, p_y_mid),    # right leg
+        (x_left - u_half, u_yc - u_half, port_p0[0], u_yc + u_half),     # base, left of the port
+        (port_p1[0], u_yc - u_half, x_right + u_half, u_yc + u_half),    # base, right of the port
+    ]
+    extra_via4_points = []
+    wide_bridge_paths = []
     if variant == "shorted":
-        # Test-only jumper, real drawn metal (not part of the normal
-        # 3-terminal device) shorting P2's pad directly to ct's pad -- both
-        # sit on the same y_baseline pad row (see route_ports()). Made wide
-        # too (same bridge_width_um), same low-resistance reasoning as
-        # above -- this is the actual "short" of the shorted-secondary test,
-        # so its own resistance directly affects Za_sc's accuracy.
+        # Test-only jumper, real drawn metal (not part of the normal 3-terminal device) shorting P2's pad directly
+        # to ct's pad -- both sit on the same y_baseline pad row (see route_ports()).
         x_lo, x_hi = sorted((p2_pad[0], p3_pad[0]))
         wide_bridge_paths.append((x_lo, x_hi, p2_pad[1]))
 
@@ -882,10 +919,11 @@ def build_openems_structure(geometry, stack, f_max_hz, dump_field=False):
     jog_fine_ys = [xy[1] + d for xy in jog_points for d in fine_offsets]
 
     anchor_xs = ([p[0] for p in all_pts] + [pt[0] for path in port_paths for pt in path]
-                 + [port_p0[0], port_p1[0]] + [x0 for x0, x1, y in wide_bridge_paths]
+                 + [port_p0[0], port_p1[0]] + [c for bx in u_boxes for c in (bx[0], bx[2])]
+                 + [x0 for x0, x1, y in wide_bridge_paths]
                  + [x1 for x0, x1, y in wide_bridge_paths])
     anchor_ys = ([p[1] for p in all_pts] + [pt[1] for path in port_paths for pt in path]
-                 + [port_p0[1], port_p1[1]]
+                 + [port_p0[1], port_p1[1]] + [c for bx in u_boxes for c in (bx[1], bx[3])]
                  + [y - bridge_half_w for x0, x1, y in wide_bridge_paths]
                  + [y + bridge_half_w for x0, x1, y in wide_bridge_paths])
     # Coarse anchors merged at the usual res_xy threshold, jog anchors
@@ -930,7 +968,7 @@ def build_openems_structure(geometry, stack, f_max_hz, dump_field=False):
     # is read).
     margin_um = max(6 * track_width_um, 0.4 * r_outer)
     box = r_outer + margin_um
-    box_y = -p3_pad[1] + margin_um
+    box_y = -min(p3_pad[1], u_yc - u_half) + margin_um
     mesh.AddLine("x", xs + [-box, box])
     mesh.AddLine("y", ys + [-box_y, box])
     mesh.SmoothMeshLines("x", res_xy, ratio=1.4)
@@ -988,7 +1026,8 @@ def build_openems_structure(geometry, stack, f_max_hz, dump_field=False):
         for (x0, y0), (x1, y1) in zip(path[:-1], path[1:]):
             xlo, xhi = sorted((x0, x1))
             ylo, yhi = sorted((y0, y1))
-            metal4.AddBox([xlo - half_w, ylo - half_w, m4_z0], [xhi + half_w, yhi + half_w, m4_z1], priority=5)
+            metal4.AddBox([xlo - port_half_w, ylo - port_half_w, m4_z0], [xhi + port_half_w, yhi + port_half_w, m4_z1],
+                          priority=5)
     # Wide, low-resistance Metal4 bridge(s) -- see this function's own
     # docstring/comment above for why these exist (keeps the actual
     # LumpedPort small, matching loop's/spiral's own already-validated port
@@ -996,6 +1035,8 @@ def build_openems_structure(geometry, stack, f_max_hz, dump_field=False):
     # just wider in y (bridge_half_w, not half_w).
     for x0, x1, y in wide_bridge_paths:
         metal4.AddBox([x0 - half_w, y - bridge_half_w, m4_z0], [x1 + half_w, y + bridge_half_w, m4_z1], priority=5)
+    for x0, y0, x1, y1 in u_boxes:
+        metal4.AddBox([x0, y0, m4_z0], [x1, y1, m4_z1], priority=5)
     for path in port_metal5_paths:
         for (x0, y0), (x1, y1) in zip(path[:-1], path[1:]):
             xlo, xhi = sorted((x0, x1))
@@ -1051,7 +1092,7 @@ def build_openems_structure(geometry, stack, f_max_hz, dump_field=False):
     # extra_via4_points: the 2 taps (bridge's own far end, far pad's own
     # riser) that bring the LumpedPort's own 2 terminals up onto Metal5 --
     # see this function's own "2026-09-18 SECOND fix" comment above for why.
-    # 2026-09-21: each tap now has a Metal5 cap (2*half_w square) over it -- before, the port's two
+    # (no taps any more since the U fixture, extra_via4_points is empty) 2026-09-21: each tap had a Metal5 cap (2*half_w square) over it -- before, the port's two
     # terminals were the bare tops of the via4s with no Metal5 above them -- and the via4 is inset
     # by the same 50nm enclosure as the jog vias.
     for xy in extra_via4_points:

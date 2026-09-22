@@ -18,7 +18,7 @@
             "grid": "0.5"
         },
         "track_width_um": {
-            "description": "Metal5 winding trace width (also used for the Metal4 port risers/undercuts and via4 sizing)",
+            "description": "Metal5 winding trace width (also used for via4 sizing and the winding-adjacent Metal4 undercuts/jog miters -- NOT the P1/P2/ct port risers or the U port fixture, see 'port_track_width_um')",
             "unit": "um",
             "default": "3",
             "min": "1",
@@ -48,6 +48,14 @@
             "min": "8",
             "max": "40",
             "grid": "1"
+        },
+        "port_track_width_um": {
+            "description": "2026-09-22 (user decision): width of the port fixture's own Metal4 traces -- the P1/P2/ct risers AND the U-shaped port fixture (see build_openems_structure()'s own PORT_U_LEG_UM comment) -- independent of track_width_um. Metal4 is 2.25x more resistive per square than Metal5 in this stack (checked against gf180mcu_stack.json's own tt sheet-resistance values), and widening these traces costs nothing in r_outer/domain size (unlike widening the winding's own track_width_um), so this stays a separate, generously-sized knob. Must leave enough room for the port gap between the two U legs given port_spacing_um -- build_openems_structure() raises ValueError otherwise.",
+            "unit": "um",
+            "default": "6",
+            "min": "2",
+            "max": "20",
+            "grid": "0.5"
         }
     },
     "derived_parameters": {
