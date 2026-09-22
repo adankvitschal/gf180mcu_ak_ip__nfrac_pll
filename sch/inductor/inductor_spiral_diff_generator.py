@@ -34,13 +34,27 @@ STEPS at the two points where the path crosses the x=0 axis (alternating
 bottom, top, bottom, top, ... as the arm spirals in) -- each step is a
 short vertical segment (in the horizontal, x=0-anchored sense the user
 asked for: the flanking arcs stay level/at-radius, only this one short
-segment actually changes radius) that moves the winding in by
-half_step = pitch/2 (so a full 360-degree turn, i.e. one bottom step AND
-one top step, still loses exactly one `pitch` in radius overall, keeping
-`n_turns` consistent with every earlier round -- the user's own wording
-implied a full `pitch` per step, which would silently double the
-winding's density per n_turns; flagged as a deliberate deviation, not
-silently applied).
+segment actually changes radius) that moves the winding in by half_step.
+
+2026-09-23 REVISION (superseding the paragraph an earlier round of this docstring had here):
+half_step used to be pitch/2 = (track_width_um+spacing_um)/2, chosen back then specifically
+to keep n_turns' radial density consistent with 'spiral'/'loop' (a full `pitch` per step was
+considered and rejected as silently doubling that density). That choice had an un-reviewed
+side effect: because the two arms INTERLEAVE (this same step alternates which arm is at a
+given radius), the real edge-to-edge gap between two radially-adjacent rings of DIFFERENT
+arms is `half_step - track_width_um` = `(spacing_um-track_width_um)/2`, NOT spacing_um --
+comfortable at this generator's original default (track=3,spacing=6 -> 1.5um) but shrinking
+toward zero (and going negative, i.e. real overlap) as track_width_um approaches/exceeds
+spacing_um, exactly what happened when a later session widened track_width_um to 5um at the
+same spacing_um=6 (0.5um real gap, eaten by the crossing miters -- visibly overlapping).
+Root-caused and fixed the same session, per the user's own diagnosis and proposed formula:
+half_step = track_width_um + spacing_um (a full "track+spacing" per half-turn step, the
+option the earlier round rejected) makes the INTERLEAVED gap exactly spacing_um everywhere
+(same-arm full-turn gap becomes track_width_um+2*spacing_um, larger, since a same-arm step
+now skips over the other arm's own ring). This DOES reverse the earlier density decision --
+r_outer (see below) grows accordingly for the same n_turns -- but the user's own follow-up
+guidance for this round was to use a smaller spacing_um now that it means the real gap
+directly (no more implicit /2 discount), keeping the coil's overall growth in check.
 
 Both arms cross x=0 at every one of those same steps (arm A crossing
 just left of it, arm B just right of it -- or vice versa), which is
@@ -161,14 +175,14 @@ _PLACEHOLDER_L_HALF_H = 2.895e-9
 _PLACEHOLDER_RS_HALF_OHM = 1.7645
 _PLACEHOLDER_CSUB_F = 103.1e-15
 
-# Ring-transition (crossing) 3-segment split: horizontal / 45-degree /
-# horizontal, as fractions of the crossing's own total length. The
-# 45-degree middle leg's ACTUAL length is pinned by how much radius the
-# crossing needs to gain (see _arm_a_raw_path()'s own docstring) -- these
-# fractions size the total (and hence the two horizontal legs) around
-# that, not the other way around.
-_TRANSITION_MID_FRAC = 0.30
-_TRANSITION_END_FRAC = 0.35
+# Ring-transition (crossing) 3-segment split: horizontal / 45-degree / horizontal. The 45-degree middle
+# leg's own length is pinned by how much radius the crossing needs to gain (see _arm_a_raw_path()'s own
+# docstring) -- not a free choice. The two horizontal legs ARE a free choice (2026-09-23, user decision):
+# sized off track_width_um (just enough for the via4 that lands at their own outer end, see
+# _arm_a_raw_path()'s own comment), not off the diagonal/radius-step's own length -- a 2026-09-17-round
+# formula (35% of the whole crossing) this replaces, which made them far bigger than the via actually
+# needs at typical track/spacing values.
+CROSSING_LEG_FACTOR = 1.0
 
 # 2026-09-21: z-domain of the FDTD box (root cause of the long-standing divergence, see
 # spiral_diff_bringup_status.md). The old z stack (substrate 12.9um, ~4.8um of air above Metal5,
@@ -195,6 +209,14 @@ JOG_MESH_REFINE = False
 # R, checked directly), and widening these traces costs nothing in r_outer/domain size (unlike widening the
 # winding's own track_width_um), so they get their own, independently tunable width.
 PORT_U_LEG_UM = 10.0
+
+# 2026-09-23 (user decision): guard against the port fixture being pulled visibly outside the winding's
+# own footprint -- found by inspecting a real jog/via4 zoom (see spiral_diff_bringup_status.md) where the
+# innermost ring's own LAST facet (the one the P1/P2 jog actually lands next to) got crossed by a pad
+# sitting further out than that facet's own chord. MIN_INNERMOST_MARGIN is the minimum fraction BY WHICH
+# innermost_facet_chord_um() must exceed the pad-to-pad distance (2*port_spacing_um) -- the user's own
+# "at least 20%, to accommodate vias and edges" figure. See geometry_from_params()'s own guard.
+MIN_INNERMOST_MARGIN = 0.20
 
 FIELD_DUMP_NAME = "field_dump"  # fixed name openems_generator_runner.py looks for
 FIELD_DUMP_NAMES = {
@@ -231,12 +253,33 @@ def load_stack(corner="tt", path=_STACK_PATH):
     }
 
 
+def innermost_facet_chord_um(n_turns, track_width_um, spacing_um, inner_diameter_um):
+    """Length of the SMALLEST regular ring facet in the whole winding -- a plain 45-degree chord
+    (2*r*sin(22.5deg)) of the innermost ring's own radius. Every ring facet is a 45-degree chord (see
+    _arm_a_raw_path()'s own "4 interior vertices at CONSTANT radius" docstring), so chord length scales
+    linearly with radius and is smallest at the innermost ring -- this is NOT the crossing's own
+    horizontal/diagonal legs (a separately-sized structure, see _arm_a_raw_path()'s own docstring), just
+    the ordinary facet next to the P1/P2 terminus itself (the winding's raw path ends AT the innermost
+    ring's own last vertex, with no crossing after it -- see route_ports()'s own p1_xy/p2_xy).
+    innermost ring radius = inner_radius_um + half_step, half_step = track_width_um+spacing_um -- must
+    stay in sync with _arm_a_raw_path()'s/route_ports()'s own r_outer algebra (see their shared 2026-09-23
+    comment)."""
+    inner_radius_um = inner_diameter_um / 2
+    half_step = track_width_um + spacing_um
+    r_innermost = inner_radius_um + half_step
+    return 2 * r_innermost * math.sin(math.radians(22.5))
+
+
 def geometry_from_params(params):
     """Extracts/type-casts this topology's 7 free geometric parameters --
     the ONLY place that knows this topology's own free parameter names.
     Fails fast if n_turns isn't a whole number of half-turns (each
     half-turn is one constant-radius 180-degree arc, see
-    diff_spiral_arms()'s docstring)."""
+    diff_spiral_arms()'s docstring), or if the port fixture's own pad-to-
+    pad distance would be pulled outside the winding's own smallest facet
+    (see innermost_facet_chord_um()'s own docstring and MIN_INNERMOST_
+    MARGIN's -- a real, visually-confirmed distortion this guards
+    against, not a hypothetical one)."""
     n_turns = float(params["n_turns"])
     n_half_laps = round(n_turns * 2)
     if n_half_laps <= 0 or abs(n_turns * 2 - n_half_laps) > 1e-6:
@@ -244,13 +287,28 @@ def geometry_from_params(params):
             f"n_turns={n_turns} must be a positive multiple of 0.5 turn "
             f"(each half-turn is one constant-radius arc between two "
             f"radius-step crossings) -- pick a value on the params.json grid.")
+    track_width_um = float(params["track_width_um"])
+    spacing_um = float(params["spacing_um"])
+    inner_diameter_um = float(params["inner_diameter_um"])
+    port_spacing_um = float(params["port_spacing_um"])
+    pad_to_pad_um = 2 * port_spacing_um
+    smallest_facet_um = innermost_facet_chord_um(n_turns, track_width_um, spacing_um, inner_diameter_um)
+    if smallest_facet_um < pad_to_pad_um * (1 + MIN_INNERMOST_MARGIN):
+        raise ValueError(
+            f"port_spacing_um={port_spacing_um:.3f} gives a pad-to-pad distance of {pad_to_pad_um:.2f}um, "
+            f"which leaves less than the required {MIN_INNERMOST_MARGIN:.0%} margin below the innermost "
+            f"ring's own smallest facet chord ({smallest_facet_um:.2f}um) -- the port jog would be pulled "
+            f"visibly outside the winding's own footprint (confirmed by a real jog/via4 render, see "
+            f"spiral_diff_bringup_status.md). Reduce port_spacing_um to at most "
+            f"{smallest_facet_um / (2 * (1 + MIN_INNERMOST_MARGIN)):.3f}um, or grow "
+            f"inner_diameter_um/track_width_um/spacing_um.")
     return {
         "n_turns": n_turns,
-        "spacing_um": float(params["spacing_um"]),
-        "track_width_um": float(params["track_width_um"]),
-        "inner_diameter_um": float(params["inner_diameter_um"]),
+        "spacing_um": spacing_um,
+        "track_width_um": track_width_um,
+        "inner_diameter_um": inner_diameter_um,
         "tab_length_um": float(params["tab_length_um"]),
-        "port_spacing_um": float(params["port_spacing_um"]),
+        "port_spacing_um": port_spacing_um,
         # 2026-09-22 (user decision): independent width for the port fixture's own Metal4 traces (P1/P2/ct
         # risers + the U -- see build_openems_structure()'s own PORT_U_LEG_UM comment) -- Metal4 is 2.25x
         # more resistive per square than Metal5 here, and widening these traces is nearly free (doesn't grow
@@ -270,8 +328,8 @@ def _arm_a_raw_path(n_turns, track_width_um, spacing_um, inner_diameter_um):
     after ct (NOT including ct_xy itself); crossing_indices lists the
     index (into pts) of the point where the winding ARRIVES at each
     intermediate crossing (the step itself is the edge from pts[idx] to
-    pts[idx+1], radius changing by pitch/2 -- see this module's own
-    docstring for why half, not a full pitch, per step).
+    pts[idx+1], radius changing by half_step = track_width_um+spacing_um --
+    see this module's own docstring for the full derivation).
 
     Each half-turn contributes 4 interior vertices at CONSTANT radius,
     offset from the crossing angles (270/90) by the same 22.5-degree
@@ -285,24 +343,22 @@ def _arm_a_raw_path(n_turns, track_width_um, spacing_um, inner_diameter_um):
     corners into a span of just a few um; then a single wide diagonal,
     which fixed the overlap but read as one intermediate-angle segment,
     not the clean horizontal/45-degree-only vocabulary the rest of the
-    layout uses). Now an explicit 3-segment path -- horizontal, then
-    EXACTLY 45 degrees, then horizontal again -- approximately 35%/30%/
-    35% of the crossing's own total length. Since the horizontal legs
+    layout uses). An explicit 3-segment path -- horizontal, then EXACTLY
+    45 degrees, then horizontal again. Since the horizontal legs
     contribute no vertical change at all, the ENTIRE radius step
     (`half_step`) has to come from the 45-degree middle leg alone, which
-    pins its length to `half_step*sqrt(2)` -- that, not an independently
-    free choice, is what actually determines the crossing's total
-    length here (`half_step*sqrt(2) / 0.30`), with the horizontal legs
-    sized at 35% of that total each. This is a real, deliberate change
-    from the previous round's `_TRANSITION_FRAC*facet_len` sizing (which
-    had no such constraint) -- the two would only coincidentally agree,
-    so this round's total crossing length is generally different (and,
-    for the geometries tried during review, noticeably shorter). Still
-    centered on x=0 and continuing the approach vertex's own x-direction
-    first, matching every earlier round's convention, so arm B's mirror
-    of this same crossing still lands in the same region (required for
-    the alternating-undercut interleaving, see diff_spiral_arms()'s
-    docstring).
+    pins its length to `half_step*sqrt(2)` -- not an independently free
+    choice. 2026-09-23 REVISION: the two horizontal legs used to be sized
+    as a fixed 35% of the crossing's own total length (itself derived
+    from the diagonal, i.e. from half_step) -- at typical geometries that
+    made them far bigger than what they're actually for (room for the
+    via4 that lands at each leg's own outer end -- see this function's
+    own h_len comment below). Now sized directly off track_width_um
+    instead (CROSSING_LEG_FACTOR). Still centered on x=0 and continuing
+    the approach vertex's own x-direction first, matching every earlier
+    round's convention, so arm B's mirror of this same crossing still
+    lands in the same region (required for the alternating-undercut
+    interleaving, see diff_spiral_arms()'s docstring).
 
     HONEST LIMITATION, not silently glossed over: this makes the
     crossing ITSELF exactly horizontal/45-degree throughout, but the two
@@ -319,10 +375,17 @@ def _arm_a_raw_path(n_turns, track_width_um, spacing_um, inner_diameter_um):
     lengths) -- a materially bigger rewrite than this round's ask,
     flagged here rather than attempted silently."""
     inner_radius_um = inner_diameter_um / 2
-    pitch = track_width_um + spacing_um
-    half_step = pitch / 2
+    # 2026-09-23: half_step = track_width_um + spacing_um (see this module's own top-level
+    # docstring for the full derivation/history) -- makes spacing_um the REAL edge-to-edge gap
+    # between any two radially-adjacent rings (same arm or interleaved opposite arm), instead
+    # of an inconsistent, track-width-dependent (spacing-track)/2 for the interleaved case.
+    half_step = track_width_um + spacing_um
     n_half_laps = round(n_turns * 2)
-    r_outer = inner_radius_um + n_turns * pitch
+    # r_outer keeps the same "innermost ring's own centerline sits half_step above
+    # inner_radius_um" invariant this module has always had (see the innermost-radius algebra
+    # below): r_outer - (n_half_laps-1)*half_step == inner_radius_um + half_step
+    # => r_outer == inner_radius_um + n_half_laps*half_step == inner_radius_um + 2*n_turns*half_step.
+    r_outer = inner_radius_um + 2 * n_turns * half_step
 
     # Anchored to the TRUE first ring vertex's own y (r_outer*sin(247.5
     # degrees)), not the exact-axis r*sin(270)=-r_outer -- same fix, same
@@ -354,9 +417,18 @@ def _arm_a_raw_path(n_turns, track_width_um, spacing_um, inner_diameter_um):
             y_next = r_next * math.sin(math.radians(theta_end_deg - 22.5))  # true FIRST vertex of next ring's own y
 
             v_extent = abs(y_end - y_next)
-            diag_len = v_extent * math.sqrt(2)
-            total_len = diag_len / _TRANSITION_MID_FRAC
-            h_len = _TRANSITION_END_FRAC * total_len
+            diag_len = v_extent * math.sqrt(2)  # NOT a free choice -- the diagonal alone carries the
+            # entire real radius step (half_step), see this function's own docstring.
+            # 2026-09-23 (user decision): the two horizontal legs used to be sized as a fixed 35% of the
+            # crossing's own total length (itself derived from diag_len, i.e. from the radial step) --
+            # at typical geometries that made them far bigger than what they're actually FOR: giving the
+            # via4 (which lands at their own outer endpoints, p0/p3 -- see build_openems_structure()'s
+            # own via4-at-run-endpoints logic) room to sit without its footprint reaching the neighbouring
+            # ring's own facet. via4 is track_width_um wide (half_w each side of its own centre), so
+            # CROSSING_LEG_FACTOR*track_width_um with CROSSING_LEG_FACTOR=1.0 leaves half_w of clearance
+            # on both sides of the via inside each leg -- sized off the via's own real footprint, not off
+            # the diagonal's length.
+            h_len = CROSSING_LEG_FACTOR * track_width_um
             # sign: p0 starts on the SAME side as the approach (last_x's
             # own sign), then each step moves toward and past the
             # opposite side -- p3 = -p0, symmetric about x=0. (An
@@ -496,7 +568,10 @@ def route_ports(geometry):
     p1_xy, p2_xy = full_a[-1], full_b[-1]
 
     inner_radius_um = geometry["inner_diameter_um"] / 2
-    r_outer = inner_radius_um + geometry["n_turns"] * (geometry["track_width_um"] + geometry["spacing_um"])
+    # Must stay in sync with _arm_a_raw_path()'s own r_outer formula (see that function's own
+    # 2026-09-23 comment) -- duplicated here since this function computes r_outer BEFORE the
+    # path itself exists, same pre-existing convention as the rest of this pair of functions.
+    r_outer = inner_radius_um + 2 * geometry["n_turns"] * (geometry["track_width_um"] + geometry["spacing_um"])
     _, port_len = mesh_resolution_um(geometry["track_width_um"], geometry["spacing_um"])
     port_spacing = geometry["port_spacing_um"]
     y_baseline = -(r_outer + port_len) - geometry["tab_length_um"]
@@ -660,6 +735,33 @@ def save_layout_preview(geometry, path, variant=None):
     circle = plt.Circle((0, 0), inner_radius_um, fill=False, linestyle="--", color="gray", linewidth=0.8, zorder=4)
     ax.add_patch(circle)
 
+    # 2026-09-23: draw the actual U port fixture -- this preview used to stop at the pad markers
+    # below, leaving the whole below-the-pad-row fixture undrawn even though build_openems_structure()
+    # always builds it for a real variant. Same math as that function's own u_boxes/port_p0/port_p1
+    # (see its own comment for the derivation) -- kept in sync by hand since this is a pure-matplotlib
+    # preview with no CSXCAD dependency, same convention as the rest of this function.
+    port_pad_0, port_pad_1 = {"arm_a": (ports["p1_pad"], ports["p3_pad"]), "arm_b": (ports["p2_pad"], ports["p3_pad"]),
+                               "shorted": (ports["p1_pad"], ports["p3_pad"])}.get(variant, (None, None))
+    if port_pad_0 is not None:
+        _, port_len = mesh_resolution_um(track_width_um, geometry["spacing_um"])
+        p_y_mid = port_pad_0[1]
+        x_left, x_right = sorted((port_pad_0[0], port_pad_1[0]))
+        u_half = port_track_width_um / 2
+        u_yc = p_y_mid - PORT_U_LEG_UM
+        x_mid = (x_left + x_right) / 2
+        port_p0 = (x_mid - port_len / 2, u_yc - u_half)
+        port_p1 = (x_mid + port_len / 2, u_yc + u_half)
+        for x0, y0, x1, y1 in (
+            (x_left - u_half, u_yc - u_half, x_left + u_half, p_y_mid),
+            (x_right - u_half, u_yc - u_half, x_right + u_half, p_y_mid),
+            (x_left - u_half, u_yc - u_half, port_p0[0], u_yc + u_half),
+            (port_p1[0], u_yc - u_half, x_right + u_half, u_yc + u_half),
+        ):
+            ax.add_patch(plt.Rectangle((x0, y0), x1 - x0, y1 - y0, facecolor="steelblue", alpha=0.45,
+                                        edgecolor="steelblue", linewidth=0.3, zorder=1))
+        ax.add_patch(plt.Rectangle(port_p0, port_p1[0] - port_p0[0], port_p1[1] - port_p0[1],
+                                    facecolor="limegreen", edgecolor="darkgreen", linewidth=0.5, zorder=6))
+
     ax.plot(*ports["p1_pad"], "go", markersize=7, zorder=5, label="P1 (a)")
     ax.plot(*ports["p2_pad"], "rs", markersize=7, zorder=5, label="P2 (b)")
     ax.plot(*ports["p3_pad"], "b^", markersize=7, zorder=5, label="P3 / E (ct)")
@@ -675,6 +777,9 @@ def save_layout_preview(geometry, path, variant=None):
         f"W={track_width_um:g}um, S={geometry['spacing_um']:g}um, "
         f"ID={geometry['inner_diameter_um']:g}um, tab={geometry['tab_length_um']:g}um, "
         f"port_spacing={geometry['port_spacing_um']:g}um", fontsize=9)
+    if port_pad_0 is not None:
+        ax.plot([], [], "s", color="steelblue", alpha=0.45, label="U fixture (Metal4)")
+        ax.plot([], [], "s", color="limegreen", label="LumpedPort")
     ax.legend(fontsize=8, loc="upper right")
     fig.tight_layout()
     fig.savefig(path, dpi=150)
