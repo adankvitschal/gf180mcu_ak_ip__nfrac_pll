@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# vendored from analog-designer-core f405ad2 -- regenerate with: python -m analog_designer.standalone.export <project>
+# vendored from analog-designer-core e22116e -- regenerate with: python -m analog_designer.standalone.export <project>
 """Standalone testbench runner for an analog-designer project repository.
 
 Runs a project's testbenches (config.json + sch/ + tb/) directly on the
@@ -620,6 +620,11 @@ def _which(name, *fallbacks):
 
 
 def _run(cmd, cwd, env, timeout):
+    # subprocess's cwd= does not update $PWD, and xschemrc files read
+    # $env(PWD) (the IHP one aborts without it, before adding the PDK's
+    # symbol paths; a project one resolves sch/ against it) -- run_sim.py
+    # gets the same effect from `cd <dir> && ...` in a shell.
+    env = dict(env, PWD=str(cwd))
     try:
         return subprocess.run(cmd, cwd=cwd, env=env, capture_output=True, text=True, timeout=timeout)
     except subprocess.TimeoutExpired as exc:
