@@ -121,6 +121,40 @@ of the defaults. See `analog-designer-core`'s own README for the GUI's
 "Open Folder" flow and the other CLI entry points
 (`gen_variations`, `manual_variation`, `check_params`, `diagnose_tb`).
 
+## Standalone simulation (no analog-designer, no docker orchestration)
+
+[`tools/run_tb.py`](tools/run_tb.py) runs this repo's testbenches on whatever
+machine it is executed on, calling `xschem`/`ngspice`/`Xyce` directly. It is a
+single Python file (standard library only; the `tb/*.py` parsers still need
+whatever they import, e.g. numpy/matplotlib), vendored from
+analog-designer-core -- regenerate it there with
+`python -m analog_designer.standalone.export <this repo>` instead of editing it.
+
+Typical use is from a shell inside an EDA container that has the tools and
+the PDK (`$PDK_ROOT`/`$PDK` set; the PDK name otherwise defaults to the tag of
+`config.json`'s `container.image`):
+
+```sh
+python3 tools/run_tb.py --doctor                    # what it found: PDK, xschem, ngspice, Xyce, OSDI models
+python3 tools/run_tb.py --list                      # blocks, topologies, tests, condition counts
+python3 tools/run_tb.py --block vco --dry         # temp dir, deleted at the end: nothing written to the repo
+python3 tools/run_tb.py --block vco               # writes sim/ exactly like the tool (GUI sees the results)
+python3 tools/run_tb.py --block vco --test op --where corner=tt -v
+```
+
+From the host, with this repo mounted into the image (the image's own
+entrypoint ignores arguments, so go through a login shell):
+
+```sh
+docker run --rm -v "$PWD":/work -w /work --entrypoint bash eda-env-designer:gf180mcuD \
+    -lc "python3 tools/run_tb.py --block vco --dry"
+```
+
+Other flags: `--variation NAME` / `--param NAME=VALUE` to simulate something
+other than the defaults, `--json FILE` for a machine-readable summary,
+`--keep` to inspect a `--dry` work dir, `--force` to rerun fresh tests,
+`--jobs N`, `--timeout S`. openEMS tests are skipped.
+
 ## Pending decisions
 
 - **Balanced/differential vs. single-ended signaling** across the PLL chain
